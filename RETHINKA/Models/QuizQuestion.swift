@@ -18,8 +18,17 @@ final class QuizQuestion {
     var topic: String
     var difficulty: Int
     var timesAnsweredIncorrectly: Int
-    
-    init(question: String, options: [String], correctAnswerIndex: Int, topic: String = "General", difficulty: Int = 1) {
+    var type: String // "multipleChoice" or "textField"
+    var userAnswer: String? // For textField answers
+
+    init(
+        question: String,
+        options: [String],
+        correctAnswerIndex: Int,
+        topic: String = "General",
+        difficulty: Int = 1,
+        type: String = "multipleChoice"
+    ) {
         self.id = UUID()
         self.question = question
         self.options = options
@@ -27,6 +36,7 @@ final class QuizQuestion {
         self.topic = topic
         self.difficulty = difficulty
         self.timesAnsweredIncorrectly = 0
+        self.type = type
     }
     
     var isAnsweredCorrectly: Bool {
@@ -34,3 +44,4 @@ final class QuizQuestion {
         return selected == correctAnswerIndex
     }
 }
+

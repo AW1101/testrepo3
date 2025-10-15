@@ -20,6 +20,7 @@ struct CreateExamView: View {
     @State private var showingAddNote = false
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var isGenerating = false
     
     private var isValidInput: Bool {
         !examName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -154,8 +155,8 @@ struct CreateExamView: View {
                             }
                             .font(.headline)
                         }
-                        .buttonStyle(Theme.PrimaryButton(isDisabled: !isValidInput))
-                        .disabled(!isValidInput)
+                        .buttonStyle(Theme.PrimaryButton(isDisabled: !isValidInput || isGenerating))
+                        .disabled(!isValidInput || isGenerating)
                         .padding(.horizontal)
                         .padding(.bottom, 30)
                     }
@@ -189,6 +190,7 @@ struct CreateExamView: View {
             return
         }
         
+        // 1) Create timeline
         let timeline = ExamTimeline(
             examName: examName,
             examBrief: examBrief,
@@ -196,19 +198,98 @@ struct CreateExamView: View {
             notes: notes
         )
         
-        timeline.generateDailyQuizzes()
+        // Create placeholder DailyQuizzes for each day
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: Date())
+        let endDate = calendar.startOfDay(for: examDate)
+        guard let daysDifference = calendar.dateComponents([.day], from: startDate, to: endDate).day else {
+            errorMessage = "Could not compute dates for timeline."
+            showingError = true
+            return
+        }
         
+        timeline.dailyQuizzes.removeAll()
+        for dayOffset in 0...daysDifference {
+            if let quizDate = calendar.date(byAdding: .day, value: dayOffset, to: startDate) {
+                let dq = DailyQuiz(date: quizDate, examTimelineId: timeline.id, dayNumber: dayOffset + 1, topic: "Loading…")
+                timeline.dailyQuizzes.append(dq)
+            }
+        }
+        
+        // Insert timeline into SwiftData
         modelContext.insert(timeline)
-        
         do {
             try modelContext.save()
-            NotificationManager.shared.scheduleDailyQuizNotification(for: timeline)
-            dismiss()
         } catch {
             errorMessage = "Failed to create timeline: \(error.localizedDescription)"
             showingError = true
+            return
+        }
+        
+        // 2) Generate topic quizzes using AI
+        let topicsWanted = max(1, daysDifference + 1)
+        let notesArray = notes.map { $0.content } // convert CourseNote -> [String]
+        isGenerating = true
+        
+        AIQuestionGenerator.shared.generateTopicQuizzes(
+            examBrief: examBrief,
+            notes: notesArray,
+            topicsWanted: topicsWanted,
+            questionsPerTopic: 3
+        ) { result in
+            DispatchQueue.main.async { // run updates on main thread
+                self.isGenerating = false
+                
+                switch result {
+                case .failure(let err):
+                    self.errorMessage = "Question generation failed: \(err.localizedDescription)"
+                    self.showingError = true
+                    NotificationManager.shared.scheduleDailyQuizNotification(for: timeline)
+                    self.dismiss()
+                    
+                case .success(let topicMap):
+                    var topicKeys = Array(topicMap.keys)
+                    if topicKeys.isEmpty { topicKeys = ["General"] }
+                    
+                    for (index, var dq) in timeline.dailyQuizzes.enumerated() {
+                        let topicIndex = index % topicKeys.count
+                        let topic = topicKeys[topicIndex]
+                        dq.topic = topic
+                        
+                        dq.questions.removeAll()
+                        if let generatedQs = topicMap[topic] {
+                            for genQ in generatedQs {
+                                let mq = QuizQuestion(
+                                    question: genQ.question,
+                                    options: genQ.options,
+                                    correctAnswerIndex: genQ.correctAnswerIndex,
+                                    topic: topic,
+                                    difficulty: 1,
+                                    type: genQ.type
+                                )
+                                dq.questions.append(mq)
+                            }
+                        }
+                        
+                        if let idx = timeline.dailyQuizzes.firstIndex(where: { $0.id == dq.id }) {
+                            timeline.dailyQuizzes[idx] = dq
+                        }
+                    }
+                    
+                    do {
+                        try modelContext.save()
+                        NotificationManager.shared.scheduleDailyQuizNotification(for: timeline)
+                        self.dismiss()
+                    } catch {
+                        self.errorMessage = "Failed to save generated quizzes: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
         }
     }
+
+
 }
 
 struct NoteCard: View {
@@ -326,3 +407,4 @@ struct AddNoteView: View {
         }
     }
 }
+

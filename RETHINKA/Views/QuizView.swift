@@ -112,18 +112,25 @@ struct QuizView: View {
                                     
                                     // Options
                                     VStack(spacing: 15) {
-                                        ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
-                                            AnswerOption(
-                                                option: option,
-                                                index: index,
-                                                isSelected: selectedAnswer == index,
-                                                isCorrect: hasAnswered ? index == question.correctAnswerIndex : nil,
-                                                onSelect: {
-                                                    if !hasAnswered {
-                                                        selectedAnswer = index
+                                        if question.type == "textField" {
+                                            TextField("Your answer...", text: Binding(
+                                                get: { question.userAnswer ?? "" },
+                                                set: { quiz.questions[currentQuestionIndex].userAnswer = $0 }
+                                            ))
+                                            .textFieldStyle(.roundedBorder)
+                                            .padding()
+                                        } else {
+                                            ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
+                                                AnswerOption(
+                                                    option: option,
+                                                    index: index,
+                                                    isSelected: selectedAnswer == index,
+                                                    isCorrect: hasAnswered ? index == question.correctAnswerIndex : nil,
+                                                    onSelect: {
+                                                        if !hasAnswered { selectedAnswer = index }
                                                     }
-                                                }
-                                            )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -197,44 +204,62 @@ struct QuizView: View {
             showingError = true
             return
         }
-        
+
         isGenerating = true
-        
+
         // Get all existing questions from all quizzes to avoid duplicates
         let allExistingQuestions = timeline.dailyQuizzes.flatMap { $0.questions }
-        
-        // Generate questions on background thread
-        Task {
-            let questions = await withCheckedContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let generated = AIQuestionGenerator.shared.generateQuestions(
-                        from: timeline.examBrief,
-                        notes: timeline.notes,
-                        count: 5,
-                        existingQuestions: allExistingQuestions
-                    )
-                    continuation.resume(returning: generated)
-                }
-            }
-            
-            await MainActor.run {
-                isGenerating = false
-                
-                if questions.isEmpty {
-                    errorMessage = "Could not generate questions. Please check your exam brief and notes contain enough information."
-                    showingError = true
-                } else {
-                    quiz.questions = questions
+
+        // Use the new AIQuestionGenerator (network-backed)
+        AIQuestionGenerator.shared.generateTopicQuizzes(
+            examBrief: timeline.examBrief,
+            notes: timeline.notes.map { $0.content },
+            topicsWanted: 1,            // just one topic for this quiz
+            questionsPerTopic: 5        // 5 questions per quiz
+        ) { result in
+            DispatchQueue.main.async {
+                self.isGenerating = false
+                switch result {
+                case .failure(let err):
+                    self.errorMessage = "Could not generate questions: \(err.localizedDescription)"
+                    self.showingError = true
+
+                case .success(let topicMap):
+                    // take the first generated topic block
+                    guard let topicEntry = topicMap.first else {
+                        self.errorMessage = "No questions generated."
+                        self.showingError = true
+                        return
+                    }
+
+                    // map to your QuizQuestion model
+                    var newQuestions: [QuizQuestion] = []
+                    for q in topicEntry.value {
+                        let newQ = QuizQuestion(
+                            question: q.question,
+                            options: q.options,
+                            correctAnswerIndex: q.correctAnswerIndex,
+                            topic: topicEntry.key,
+                            type: q.type
+                        )
+                        newQuestions.append(newQ)
+                    }
+
+                    // update quiz
+                    quiz.topic = topicEntry.key
+                    quiz.questions = newQuestions
+
                     do {
                         try modelContext.save()
                     } catch {
-                        errorMessage = "Failed to save questions: \(error.localizedDescription)"
-                        showingError = true
+                        self.errorMessage = "Failed to save questions: \(error.localizedDescription)"
+                        self.showingError = true
                     }
                 }
             }
         }
     }
+
     
     private func submitAnswer() {
         guard let selectedAnswer = selectedAnswer, currentQuestionIndex < quiz.questions.count else { return }

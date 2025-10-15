@@ -6,272 +6,163 @@
 //
 
 import Foundation
-import NaturalLanguage
 
-// AI Question Generator
-class AIQuestionGenerator {
+struct GeneratedQuestion: Codable {
+    let question: String
+    let options: [String]
+    let correctAnswerIndex: Int
+    let type: String // "multipleChoice" or "textField"
+}
+
+final class AIQuestionGenerator {
     static let shared = AIQuestionGenerator()
-    
-    private init() {}
-    
-    // Track used questions to prevent duplicates
-    private var usedQuestionHashes: Set<String> = []
-    
-    // Main Generation Function
-    func generateQuestions(
-        from examBrief: String,
-        notes: [CourseNote],
-        count: Int = 5,
-        existingQuestions: [QuizQuestion] = []
-    ) -> [QuizQuestion] {
-        // Add existing questions to hash set
-        for question in existingQuestions {
-            usedQuestionHashes.insert(hashQuestion(question.question))
-        }
-        
-        // Combine all content
-        let allContent = combineContent(examBrief: examBrief, notes: notes)
-        
-        // Extract topics
-        let topics = extractKeyTopics(from: allContent)
-        
-        // Generate questions for each topic
-        var generatedQuestions: [QuizQuestion] = []
-        var attempts = 0
-        let maxAttempts = count * 3 // Try up to 3x the requested count
-        
-        while generatedQuestions.count < count && attempts < maxAttempts {
-            attempts += 1
-            
-            // Pick a random topic
-            guard let topic = topics.randomElement() else { break }
-            
-            // Generate a question for this topic
-            if let question = generateQuestionForTopic(topic: topic, content: allContent) {
-                let questionHash = hashQuestion(question.question)
-                
-                // Only add if not duplicate
-                if !usedQuestionHashes.contains(questionHash) {
-                    generatedQuestions.append(question)
-                    usedQuestionHashes.insert(questionHash)
-                }
-            }
-        }
-        
-        return generatedQuestions
-    }
-    
-    // Generate Multiple Topic-Based Quizzes
+
+    private let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
+
+    // MARK: - Main generator
     func generateTopicQuizzes(
-        from examBrief: String,
-        notes: [CourseNote],
-        questionsPerTopic: Int = 5,
-        existingQuestions: [QuizQuestion] = []
-    ) -> [String: [QuizQuestion]] {
-        // Add existing questions to hash set
-        for question in existingQuestions {
-            usedQuestionHashes.insert(hashQuestion(question.question))
+        examBrief: String,
+        notes: [String],
+        topicsWanted: Int = 3,
+        questionsPerTopic: Int = 3,
+        completion: @escaping (Result<[String: [GeneratedQuestion]], Error>) -> Void
+    ) {
+        guard let apiKey = apiKey, !apiKey.isEmpty else {
+            print("⚠️ No API key found. Using fallback.")
+            completion(.success(localFallbackTopics()))
+            return
         }
-        
-        let allContent = combineContent(examBrief: examBrief, notes: notes)
-        let topics = extractKeyTopics(from: allContent)
-        
-        var quizzesByTopic: [String: [QuizQuestion]] = [:]
-        
-        for topic in topics.prefix(5) { // Limit to 5 topics max per day
-            var topicQuestions: [QuizQuestion] = []
-            var attempts = 0
-            let maxAttempts = questionsPerTopic * 3
-            
-            while topicQuestions.count < questionsPerTopic && attempts < maxAttempts {
-                attempts += 1
-                
-                if let question = generateQuestionForTopic(topic: topic, content: allContent) {
-                    let questionHash = hashQuestion(question.question)
-                    
-                    if !usedQuestionHashes.contains(questionHash) {
-                        topicQuestions.append(question)
-                        usedQuestionHashes.insert(questionHash)
-                    }
+
+        // Combine the exam brief + notes for context
+        let combinedInput = """
+        EXAM BRIEF:
+        \(examBrief)
+
+        NOTES:
+        \(notes.joined(separator: "\n"))
+        """
+
+        // Create system & user prompts for structured JSON output
+        let systemPrompt = """
+        You are an intelligent question generator for university exams.
+        You must identify the key topics in the provided text, research those topics conceptually,
+        and then create high-quality quiz questions about them.
+
+        Output MUST be in pure JSON format with this structure:
+        {
+          "topics": [
+            {
+              "topic": "Topic Name",
+              "questions": [
+                {
+                  "question": "Question text",
+                  "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+                  "correctAnswerIndex": 2,
+                  "type": "multipleChoice" or "textField"
                 }
+              ]
             }
-            
-            if !topicQuestions.isEmpty {
-                quizzesByTopic[topic] = topicQuestions
+          ]
+        }
+
+        - Some questions MUST use "textField" type instead of multiple choice.
+        - Avoid trivial or obvious questions.
+        - Ensure all JSON syntax is valid.
+        - DO NOT include explanations or any non-JSON text.
+        """
+
+        let userPrompt = """
+        Please generate \(topicsWanted) distinct topics with \(questionsPerTopic) questions each
+        based on the following exam material:
+        \(combinedInput)
+        """
+
+        // Build request
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userPrompt]
+            ],
+            "temperature": 0.7
+        ]
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+
+        // Send request
+        let task = URLSession.shared.dataTask(with: request) { data, _, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(NSError(domain: "NoData", code: -1)))
+                return
+            }
+
+            do {
+                // Parse JSON safely from model response
+                let decoded = try self.decodeResponse(data)
+                completion(.success(decoded))
+            } catch {
+                print("❌ LLM JSON parse failed: \(error.localizedDescription). Falling back.")
+                completion(.success(self.localFallbackTopics()))
             }
         }
-        
-        return quizzesByTopic
+
+        task.resume()
     }
-    
-    // Helper Functions
-    
-    private func combineContent(examBrief: String, notes: [CourseNote]) -> String {
-        var combined = examBrief + "\n\n"
-        
-        for note in notes {
-            combined += note.title + "\n"
-            combined += note.content + "\n\n"
-        }
-        
-        return combined
-    }
-    
-    private func extractKeyTopics(from text: String) -> [String] {
-        let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
-        tagger.string = text
-        
-        var topics: [String] = []
-        var topicFrequency: [String: Int] = [:]
-        
-        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, tokenRange in
-            if tag == .noun || tag == .verb {
-                let word = String(text[tokenRange])
-                
-                // Filter out common words and short words
-                if word.count > 4 && !commonWords.contains(word.lowercased()) {
-                    topicFrequency[word] = (topicFrequency[word] ?? 0) + 1
+
+    private func decodeResponse(_ data: Data) throws -> [String: [GeneratedQuestion]] {
+        struct APIResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable {
+                    let content: String
                 }
+                let message: Message
             }
-            return true
+            let choices: [Choice]
         }
-        
-        // Sort by frequency and take top topics
-        let sortedTopics = topicFrequency.sorted { $0.value > $1.value }
-        topics = sortedTopics.prefix(15).map { $0.key }
-        
-        // If we didn't find enough topics, add some defaults
-        if topics.isEmpty {
-            topics = ["General Concepts", "Key Terms", "Important Ideas"]
+
+        let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
+        guard let jsonString = decoded.choices.first?.message.content.data(using: .utf8) else {
+            throw NSError(domain: "Missing content", code: -2)
         }
-        
-        return topics
-    }
-    
-    private func generateQuestionForTopic(topic: String, content: String) -> QuizQuestion? {
-        // Find sentences containing the topic
-        let sentences = content.components(separatedBy: CharacterSet(charactersIn: ".!?"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.localizedCaseInsensitiveContains(topic) && $0.count > 20 }
-        
-        guard let sentence = sentences.randomElement() else {
-            return generateTemplateQuestion(topic: topic)
-        }
-        
-        // Generate question from sentence
-        let question = generateQuestionFromSentence(sentence, topic: topic)
-        let correctAnswer = extractAnswerFromSentence(sentence, topic: topic)
-        let wrongAnswers = generateWrongAnswers(correctAnswer: correctAnswer, topic: topic)
-        
-        var allOptions = [correctAnswer] + wrongAnswers
-        allOptions.shuffle()
-        
-        guard let correctIndex = allOptions.firstIndex(of: correctAnswer) else {
-            return nil
-        }
-        
-        return QuizQuestion(
-            question: question,
-            options: allOptions,
-            correctAnswerIndex: correctIndex,
-            topic: topic,
-            difficulty: 1
-        )
-    }
-    
-    private func generateQuestionFromSentence(_ sentence: String, topic: String) -> String {
-        // Simple question templates
-        let templates = [
-            "What is \(topic)?",
-            "Which of the following best describes \(topic)?",
-            "What is the main purpose of \(topic)?",
-            "How does \(topic) work?",
-            "What is true about \(topic)?"
-        ]
-        
-        return templates.randomElement() ?? "What is \(topic)?"
-    }
-    
-    private func extractAnswerFromSentence(_ sentence: String, topic: String) -> String {
-        // Extract a meaningful phrase from the sentence
-        let words = sentence.components(separatedBy: " ")
-        
-        if words.count > 5 {
-            let startIndex = min(words.count - 5, 2)
-            let endIndex = min(startIndex + 5, words.count)
-            return words[startIndex..<endIndex].joined(separator: " ")
-        }
-        
-        return sentence
-    }
-    
-    private func generateWrongAnswers(correctAnswer: String, topic: String) -> [String] {
-        // Generate plausible wrong answers
-        let wrongAnswerTemplates = [
-            "A method used in advanced \(topic) systems",
-            "The opposite approach to \(topic)",
-            "An outdated technique for \(topic)",
-            "A common misconception about \(topic)",
-            "An alternative to \(topic)",
-            "The inverse of \(topic)",
-            "A related but different concept"
-        ]
-        
-        var wrongAnswers: [String] = []
-        
-        // Make sure we generate different answers
-        var availableTemplates = wrongAnswerTemplates
-        availableTemplates.shuffle()
-        
-        for _ in 0..<3 {
-            if let template = availableTemplates.popLast() {
-                wrongAnswers.append(template)
+
+        struct Root: Codable {
+            struct TopicBlock: Codable {
+                let topic: String
+                let questions: [GeneratedQuestion]
             }
+            let topics: [TopicBlock]
         }
-        
-        return wrongAnswers
+
+        let root = try JSONDecoder().decode(Root.self, from: jsonString)
+        return Dictionary(uniqueKeysWithValues: root.topics.map { ($0.topic, $0.questions) })
     }
-    
-    private func generateTemplateQuestion(topic: String) -> QuizQuestion {
-        let questionTemplates = [
-            ("What is the primary function of \(topic)?", "To manage and organize data", ["To delete all files", "To slow down the system", "To create errors"]),
-            ("Which statement about \(topic) is correct?", "It is an important concept", ["It is completely obsolete", "It should never be used", "It has no practical applications"]),
-            ("What does \(topic) refer to?", "A key component of the system", ["A type of error message", "An outdated feature", "A security vulnerability"])
-        ]
-        
-        let template = questionTemplates.randomElement()!
-        var allOptions = [template.1] + template.2
-        allOptions.shuffle()
-        
-        let correctIndex = allOptions.firstIndex(of: template.1)!
-        
-        return QuizQuestion(
-            question: template.0,
-            options: allOptions,
-            correctAnswerIndex: correctIndex,
-            topic: topic,
-            difficulty: 1
-        )
+
+    // MARK: - Fallback generator
+    private func localFallbackTopics() -> [String: [GeneratedQuestion]] {
+        let sampleTopics = ["Study Skills", "Exam Strategy", "Revision Techniques"]
+        var dict: [String: [GeneratedQuestion]] = [:]
+        for topic in sampleTopics {
+            let qs = (1...3).map { i in
+                GeneratedQuestion(
+                    question: "Describe one key idea about \(topic.lowercased()) (\(i)).",
+                    options: ["", "", "", ""],
+                    correctAnswerIndex: 0,
+                    type: "textField"
+                )
+            }
+            dict[topic] = qs
+        }
+        return dict
     }
-    
-    private func hashQuestion(_ question: String) -> String {
-        // Simple hash to detect duplicate questions
-        return question.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: " ", with: "")
-    }
-    
-    // Common words to filter out
-    private let commonWords: Set<String> = [
-        "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
-        "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-        "this", "but", "his", "by", "from", "they", "we", "say", "her", "she",
-        "or", "an", "will", "my", "one", "all", "would", "there", "their", "what",
-        "so", "up", "out", "if", "about", "who", "get", "which", "go", "me",
-        "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
-        "people", "into", "year", "your", "good", "some", "could", "them", "see", "other",
-        "than", "then", "now", "look", "only", "come", "its", "over", "think", "also",
-        "back", "after", "use", "two", "how", "our", "work", "first", "well", "way",
-        "even", "new", "want", "because", "any", "these", "give", "day", "most", "us"
-    ]
 }

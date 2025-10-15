@@ -7,12 +7,25 @@
 		<key>RETHINKA.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>1</integer>
 		</dict>
 		<key>RETHINKAWidgetExtension.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>1</integer>
+			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>3886F28C2E9E0CAE004E0D76</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>38A252CE2E9E1D3400FC1F8D</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>
