@@ -2,12 +2,12 @@
 //  SettingsView.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import SwiftUI
 
-// Still pretty much all placeholder stuff that i made at the st
+// Still pretty much all placeholder stuff that I made at the start, will need to be revisited/linked with the rest of it later
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
@@ -220,4 +220,8 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+#Preview {
+    SettingsView()
 }

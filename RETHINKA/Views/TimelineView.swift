@@ -2,7 +2,7 @@
 //  TimelineView.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import SwiftUI
@@ -38,6 +38,22 @@ struct TimelineView: View {
         let today = calendar.startOfDay(for: Date())
         return sortedQuizzes.filter { calendar.isDate($0.date, inSameDayAs: today) }
     }
+    
+    
+    
+    enum ActiveSheet: Identifiable {
+        case quiz(DailyQuiz)
+        case review(DailyQuiz)
+        
+        var id: UUID {
+            switch self {
+            case .quiz(let quiz), .review(let quiz):
+                return quiz.id
+            }
+        }
+    }
+
+    @State private var activeSheet: ActiveSheet?
     
     var body: some View {
         ZStack {
@@ -86,12 +102,12 @@ struct TimelineView: View {
                                 .foregroundColor(Theme.primary)
                             
                             ForEach(todayQuizzes) { quiz in
+                                // Start or Review Quiz
                                 TodayQuizCard(quiz: quiz, onStart: {
                                     if quiz.isCompleted {
-                                        reviewQuiz = quiz
-                                        showingReview = true
+                                        activeSheet = .review(quiz)
                                     } else {
-                                        selectedQuiz = quiz
+                                        activeSheet = .quiz(quiz)
                                     }
                                 })
                             }
@@ -141,10 +157,9 @@ struct TimelineView: View {
                                         isAvailable: isQuizAvailable(quiz),
                                         onTap: {
                                             if quiz.isCompleted {
-                                                reviewQuiz = quiz
-                                                showingReview = true
+                                                activeSheet = .review(quiz)
                                             } else if isQuizAvailable(quiz) {
-                                                selectedQuiz = quiz
+                                                activeSheet = .quiz(quiz)
                                             }
                                         }
                                     )
@@ -160,11 +175,11 @@ struct TimelineView: View {
         }
         .navigationTitle("Timeline")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $selectedQuiz) { quiz in
-            QuizView(quiz: quiz)
-        }
-        .sheet(isPresented: $showingReview) {
-            if let quiz = reviewQuiz {
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .quiz(let quiz):
+                QuizView(quiz: quiz)
+            case .review(let quiz):
                 NavigationStack {
                     QuizReviewView(quiz: quiz)
                 }
@@ -251,9 +266,6 @@ struct TodayQuizCard: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        Text("• Tap to review")
-                            .font(.caption2)
-                            .foregroundColor(Theme.primary)
                     }
                 } else {
                     Text("Ready to start")
@@ -378,3 +390,46 @@ struct QuizTimelineCard: View {
         .disabled(!isAvailable && !quiz.isCompleted)
     }
 }
+
+struct TimelineView_Previews: PreviewProvider {
+    static var sampleTimeline: ExamTimeline {
+        let timeline = ExamTimeline(
+            examName: "Sample Exam",
+            examBrief: "A short description of the sample exam.",
+            examDate: Date(),
+        )
+        
+        let today = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+        
+        // Placeholder quizzes
+        let q1 = DailyQuiz(date: yesterday, examTimelineId: timeline.id, dayNumber: 1, topic: "Yesterday Quiz 1")
+        q1.isCompleted = true
+        q1.score = 0.8
+        
+        let q2 = DailyQuiz(date: yesterday, examTimelineId: timeline.id, dayNumber: 1, topic: "Yesterday Quiz 2")
+        q2.isCompleted = false
+        
+        let q3 = DailyQuiz(date: today, examTimelineId: timeline.id, dayNumber: 2, topic: "Today Quiz 1")
+        q3.isCompleted = false
+        
+        let q4 = DailyQuiz(date: today, examTimelineId: timeline.id, dayNumber: 2, topic: "Today Quiz 2")
+        q4.isCompleted = true
+        q4.score = 0.9
+        
+        let q5 = DailyQuiz(date: tomorrow, examTimelineId: timeline.id, dayNumber: 3, topic: "Tomorrow Quiz")
+        q5.isCompleted = false
+        
+        timeline.dailyQuizzes = [q1, q2, q3, q4, q5]
+        return timeline
+    }
+    
+    static var previews: some View {
+        NavigationStack {
+            TimelineView(timeline: sampleTimeline)
+                .environment(\.colorScheme, .light)
+        }
+    }
+}
+

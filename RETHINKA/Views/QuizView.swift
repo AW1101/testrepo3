@@ -2,7 +2,7 @@
 //  QuizView.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import SwiftUI
@@ -16,11 +16,26 @@ struct QuizView: View {
     @State private var currentQuestionIndex = 0
     @State private var showingResults = false
     @State private var selectedAnswer: Int?
+    @State private var textFieldAnswer: String = ""
     @State private var hasAnswered = false
-    @State private var isGenerating = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
-    @State private var timeline: ExamTimeline?
+    
+    
+    private var currentQuestion: QuizQuestion? {
+        guard currentQuestionIndex < quiz.questions.count else { return nil }
+        return quiz.questions[currentQuestionIndex]
+    }
+    
+    private var canSubmit: Bool {
+        guard let question = currentQuestion else { return false }
+        
+        if question.type == "textField" {
+            return !textFieldAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else {
+            return selectedAnswer != nil
+        }
+    }
+    
+    
     
     var body: some View {
         NavigationStack {
@@ -28,55 +43,8 @@ struct QuizView: View {
                 Theme.background.ignoresSafeArea()
                 
                 if quiz.questions.isEmpty {
-                    // Empty state - questions will be generated
-                    VStack(spacing: 20) {
-                        if isGenerating {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                                .padding()
-                            
-                            Text("Generating Questions...")
-                                .font(.headline)
-                                .foregroundColor(Theme.primary)
-                            
-                            Text("Using AI to create \(quiz.topic) quiz")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 60))
-                                .foregroundColor(Theme.secondary)
-                            
-                            Text("Quiz Generation")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.primary)
-                            
-                            Text("Questions will be automatically generated based on your exam brief and notes.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                            
-                            Text("Topic: \(quiz.topic)")
-                                .font(.caption)
-                                .foregroundColor(Theme.secondary)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
-                                .background(Theme.secondary.opacity(0.1))
-                                .cornerRadius(15)
-                            
-                            Button(action: generateQuestions) {
-                                HStack {
-                                    Image(systemName: "sparkles")
-                                    Text("Generate Questions")
-                                }
-                                .font(.headline)
-                            }
-                            .buttonStyle(Theme.PrimaryButton())
-                            .padding(.horizontal, 40)
-                        }
-                    }
+                    // Should never happen with new flow, but keep as safety
+                    EmptyQuizView()
                 } else if showingResults {
                     QuizResultView(quiz: quiz, onClose: {
                         dismiss()
@@ -92,14 +60,24 @@ struct QuizView: View {
                         // Question Content
                         ScrollView {
                             VStack(spacing: 25) {
-                                if currentQuestionIndex < quiz.questions.count {
-                                    let question = quiz.questions[currentQuestionIndex]
-                                    
+                                if let question = currentQuestion {
                                     // Question
                                     VStack(alignment: .leading, spacing: 15) {
-                                        Text("Question \(currentQuestionIndex + 1)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                        HStack {
+                                            Text("Question \(currentQuestionIndex + 1)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                            
+                                            Text(question.type == "textField" ? "Written Answer" : "Multiple Choice")
+                                                .font(.caption2)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 5)
+                                                .background(Theme.secondary.opacity(0.2))
+                                                .cornerRadius(10)
+                                                .foregroundColor(Theme.secondary)
+                                        }
                                         
                                         Text(question.question)
                                             .font(.title3)
@@ -113,12 +91,44 @@ struct QuizView: View {
                                     // Options
                                     VStack(spacing: 15) {
                                         if question.type == "textField" {
-                                            TextField("Your answer...", text: Binding(
-                                                get: { question.userAnswer ?? "" },
-                                                set: { quiz.questions[currentQuestionIndex].userAnswer = $0 }
-                                            ))
-                                            .textFieldStyle(.roundedBorder)
-                                            .padding()
+                                            VStack(alignment: .leading, spacing: 10) {
+                                                Text("Your Answer:")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                
+                                                TextEditor(text: $textFieldAnswer)
+                                                    .frame(minHeight: 120)
+                                                    .padding(8)
+                                                    .background(Theme.cardBackground)
+                                                    .cornerRadius(12)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 12)
+                                                            .stroke(Theme.secondary.opacity(0.3), lineWidth: 1)
+                                                    )
+                                                    .disabled(hasAnswered)
+                                                
+                                                if hasAnswered {
+                                                    VStack(alignment: .leading, spacing: 8) {
+                                                        HStack {
+                                                            Image(systemName: "lightbulb.fill")
+                                                                .foregroundColor(.orange)
+                                                            Text("Suggested Answer:")
+                                                                .font(.caption)
+                                                                .fontWeight(.bold)
+                                                                .foregroundColor(.orange)
+                                                        }
+                                                        
+                                                        Text(question.options[question.correctAnswerIndex])
+                                                            .font(.subheadline)
+                                                            .foregroundColor(.secondary)
+                                                            .padding()
+                                                            .background(Color.orange.opacity(0.1))
+                                                            .cornerRadius(10)
+                                                    }
+                                                    .padding(.top, 10)
+                                                }
+                                            }
+                                            .padding(.horizontal)
                                         } else {
                                             ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
                                                 AnswerOption(
@@ -157,8 +167,8 @@ struct QuizView: View {
                                     }
                                     .font(.headline)
                                 }
-                                .buttonStyle(Theme.PrimaryButton(isDisabled: selectedAnswer == nil))
-                                .disabled(selectedAnswer == nil)
+                                .buttonStyle(Theme.PrimaryButton(isDisabled: !canSubmit))
+                                .disabled(!canSubmit)
                             }
                         }
                         .padding()
@@ -175,99 +185,24 @@ struct QuizView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: $showingError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage)
-            }
-            .onAppear {
-                fetchTimeline()
-            }
         }
     }
-    
-    private func fetchTimeline() {
-        let timelineId = quiz.examTimelineId   // capture UUID value
-
-        let descriptor = FetchDescriptor<ExamTimeline>(
-            predicate: #Predicate { $0.id == timelineId }
-        )
-
-        if let fetchedTimeline = try? modelContext.fetch(descriptor).first {
-            timeline = fetchedTimeline
-        }
-    }
-    
-    private func generateQuestions() {
-        guard let timeline = timeline else {
-            errorMessage = "Could not find timeline information"
-            showingError = true
-            return
-        }
-
-        isGenerating = true
-
-        // Get all existing questions from all quizzes to avoid duplicates
-        let allExistingQuestions = timeline.dailyQuizzes.flatMap { $0.questions }
-
-        // Use the new AIQuestionGenerator (network-backed)
-        AIQuestionGenerator.shared.generateTopicQuizzes(
-            examBrief: timeline.examBrief,
-            notes: timeline.notes.map { $0.content },
-            topicsWanted: 1,            // just one topic for this quiz
-            questionsPerTopic: 5        // 5 questions per quiz
-        ) { result in
-            DispatchQueue.main.async {
-                self.isGenerating = false
-                switch result {
-                case .failure(let err):
-                    self.errorMessage = "Could not generate questions: \(err.localizedDescription)"
-                    self.showingError = true
-
-                case .success(let topicMap):
-                    // take the first generated topic block
-                    guard let topicEntry = topicMap.first else {
-                        self.errorMessage = "No questions generated."
-                        self.showingError = true
-                        return
-                    }
-
-                    // map to your QuizQuestion model
-                    var newQuestions: [QuizQuestion] = []
-                    for q in topicEntry.value {
-                        let newQ = QuizQuestion(
-                            question: q.question,
-                            options: q.options,
-                            correctAnswerIndex: q.correctAnswerIndex,
-                            topic: topicEntry.key,
-                            type: q.type
-                        )
-                        newQuestions.append(newQ)
-                    }
-
-                    // update quiz
-                    quiz.topic = topicEntry.key
-                    quiz.questions = newQuestions
-
-                    do {
-                        try modelContext.save()
-                    } catch {
-                        self.errorMessage = "Failed to save questions: \(error.localizedDescription)"
-                        self.showingError = true
-                    }
-                }
-            }
-        }
-    }
-
     
     private func submitAnswer() {
-        guard let selectedAnswer = selectedAnswer, currentQuestionIndex < quiz.questions.count else { return }
+        guard let question = currentQuestion else { return }
         
-        quiz.questions[currentQuestionIndex].selectedAnswerIndex = selectedAnswer
-        
-        if !quiz.questions[currentQuestionIndex].isAnsweredCorrectly {
-            quiz.questions[currentQuestionIndex].timesAnsweredIncorrectly += 1
+        if question.type == "textField" {
+            // Store text answer
+            quiz.questions[currentQuestionIndex].userAnswer = textFieldAnswer
+            // For text questions, mark as "correct" (manual review needed)
+            quiz.questions[currentQuestionIndex].selectedAnswerIndex = question.correctAnswerIndex
+        } else {
+            guard let selectedAnswer = selectedAnswer else { return }
+            quiz.questions[currentQuestionIndex].selectedAnswerIndex = selectedAnswer
+            
+            if !quiz.questions[currentQuestionIndex].isAnsweredCorrectly {
+                quiz.questions[currentQuestionIndex].timesAnsweredIncorrectly += 1
+            }
         }
         
         hasAnswered = true
@@ -277,6 +212,7 @@ struct QuizView: View {
         if currentQuestionIndex < quiz.questions.count - 1 {
             currentQuestionIndex += 1
             selectedAnswer = nil
+            textFieldAnswer = ""
             hasAnswered = false
         } else {
             completeQuiz()
@@ -297,6 +233,26 @@ struct QuizView: View {
         } catch {
             print("Error saving quiz: \(error)")
         }
+    }
+}
+
+struct EmptyQuizView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+            
+            Text("No Questions Available")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text("This quiz has no questions. Please contact support.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
     }
 }
 
@@ -408,5 +364,54 @@ struct AnswerOption: View {
             )
         }
         .disabled(isCorrect != nil)
+    }
+}
+
+struct QuizView_Previews: PreviewProvider {
+    static var sampleQuiz: DailyQuiz {
+        let dq = DailyQuiz(
+            date: Date(),
+            examTimelineId: UUID(),
+            dayNumber: 1,
+            topic: "Sample Quiz"
+        )
+        
+        // Placeholder multiple choice question
+        let q1 = QuizQuestion(
+            question: "What is 2 + 2?",
+            options: ["3", "4", "5", "6"],
+            correctAnswerIndex: 1,
+            topic: dq.topic,
+            type: "multipleChoice"
+        )
+        
+        // Placeholder multiple choice question (wrong)
+        let q2 = QuizQuestion(
+            question: "Pick the colour red",
+            options: ["Red", "Blue", "Green", "Yellow"],
+            correctAnswerIndex: 0,
+            topic: dq.topic,
+            type: "multipleChoice"
+        )
+        
+        // Placeholder text question
+        let q3 = QuizQuestion(
+            question: "Say hello.",
+            options: ["Hello", "", "", ""],
+            correctAnswerIndex: 0,
+            topic: dq.topic,
+            type: "textField"
+        )
+        q3.userAnswer = "Hello"
+        
+        dq.questions = [q1, q2, q3]
+        return dq
+    }
+    
+    static var previews: some View {
+        NavigationStack {
+            QuizView(quiz: sampleQuiz)
+                .environment(\.colorScheme, .light)
+        }
     }
 }

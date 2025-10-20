@@ -2,7 +2,7 @@
 //  ExamTimeline.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import Foundation
@@ -30,39 +30,22 @@ final class ExamTimeline {
         self.isActive = true
     }
     
-    func generateDailyQuizzes() {
-        let calendar = Calendar.current
-        let startDate = calendar.startOfDay(for: Date())
-        let endDate = calendar.startOfDay(for: examDate)
-        
-        guard let daysDifference = calendar.dateComponents([.day], from: startDate, to: endDate).day else {
-            return
-        }
-        
-        dailyQuizzes.removeAll()
-        
-        // Simple topic list - will be extracted from content
-        let baseTopics = ["Core Concepts", "Key Principles", "Advanced Topics", "Fundamentals", "Practical Applications"]
-        
-        for dayOffset in 0...daysDifference {
-            if let quizDate = calendar.date(byAdding: .day, value: dayOffset, to: startDate) {
-                // Create 2-3 quizzes per day with different topics
-                let quizzesPerDay = min(3, baseTopics.count)
-                
-                for i in 0..<quizzesPerDay {
-                    let topicIndex = (dayOffset * quizzesPerDay + i) % baseTopics.count
-                    let topic = baseTopics[topicIndex]
-                    
-                    let quiz = DailyQuiz(
-                        date: quizDate,
-                        examTimelineId: id,
-                        dayNumber: dayOffset + 1,
-                        topic: topic
-                    )
-                    dailyQuizzes.append(quiz)
-                }
-            }
-        }
+    // Helper computed properties
+    var totalQuizCount: Int {
+        dailyQuizzes.count
+    }
+    
+    var completedQuizCount: Int {
+        dailyQuizzes.filter { $0.isCompleted }.count
+    }
+    
+    var progressPercentage: Double {
+        guard totalQuizCount > 0 else { return 0 }
+        return Double(completedQuizCount) / Double(totalQuizCount)
+    }
+    
+    var daysUntilExam: Int {
+        Calendar.current.dateComponents([.day], from: Date(), to: examDate).day ?? 0
     }
 }
 
@@ -86,5 +69,14 @@ final class DailyQuiz {
         self.topic = topic
         self.questions = []
         self.isCompleted = false
+    }
+    
+    // Helper computed properties
+    var correctAnswerCount: Int {
+        questions.filter { $0.isAnsweredCorrectly }.count
+    }
+    
+    var incorrectAnswerCount: Int {
+        questions.count - correctAnswerCount
     }
 }

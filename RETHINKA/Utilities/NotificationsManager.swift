@@ -2,13 +2,13 @@
 //  NotificationsManager.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import Foundation
 import UserNotifications
 
-// Have to rework a lot of this myself, still pretty stock standard/wrong/from a template
+// Have to rework a lot of this myself, still pretty stock standard/wrong/from a template, essentially unused so it'll all have to be done later
 class NotificationManager {
     static let shared = NotificationManager()
     

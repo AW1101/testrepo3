@@ -2,14 +2,14 @@
 //  CourseNote.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import Foundation
 import SwiftData
 
 @Model
-//pretty basic, just used for setup page, might not be needed, could be integrated elsewhere
+// Pretty basic, just used it for setup page at one point, either might not be needed or will be reworked to replace exam brief stuff, could be integrated elsewhere?
 final class CourseNote {
     var id: UUID
     var title: String

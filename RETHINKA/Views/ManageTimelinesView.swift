@@ -2,13 +2,14 @@
 //  ManageTimelinesView.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
 import Foundation
 import SwiftUI
 import SwiftData
 
+// basically works but there's a few minor things needed to be addressed at some point (archiving interacting with next-day stuff, percentages appearing incorrectly etc.)
 struct ManageTimelinesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -222,9 +223,6 @@ struct TimelineManagementCard: View {
                             Text("\(Int(progress * 100))")
                                 .font(.headline)
                                 .foregroundColor(.white)
-                            Text("%")
-                                .font(.caption2)
-                                .foregroundColor(.white)
                         }
                     )
             }
@@ -340,4 +338,8 @@ struct ArchivedTimelineCard: View {
                 .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
         )
     }
+}
+
+#Preview {
+    ManageTimelinesView()
 }

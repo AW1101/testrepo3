@@ -2,10 +2,10 @@
 //  RETHINKAWidget.swift
 //  RETHINKAWidget
 //
-//  Created by Aston Walsh on 14/10/2025.
+//  Created by Aston Walsh on 11/10/2025.
 //
 
-// Still just placeholder, needs to be worked on once main stuff is done
+// Still all placeholder, needs to be worked on once main stuff is done
 import WidgetKit
 import SwiftUI
 

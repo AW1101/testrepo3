@@ -2,7 +2,7 @@
 //  QuizReviewView.swift
 //  RETHINKA
 //
-//  Created by Aston Walsh on 15/10/2025.
+//  Created by Aston Walsh on 12/10/2025.
 //
 
 import SwiftUI
@@ -54,9 +54,6 @@ struct QuizReviewView: View {
                                         Text("\(scorePercentage)")
                                             .font(.title2)
                                             .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                        Text("%")
-                                            .font(.caption2)
                                             .foregroundColor(.white)
                                     }
                                 )
@@ -136,6 +133,7 @@ struct QuizReviewView: View {
         // Reset all answers
         for question in quiz.questions {
             question.selectedAnswerIndex = nil
+            question.userAnswer = nil
         }
         
         // Reset quiz status
@@ -159,14 +157,17 @@ struct StatPill: View {
     let color: Color
     
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.title3)
                 .foregroundColor(color)
             
             Text(value)
-                .font(.headline)
+                .font(.subheadline)
+                .fontWeight(.semibold)
                 .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             
             Text(label)
                 .font(.caption2)
@@ -174,7 +175,8 @@ struct StatPill: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
-        .background(color.opacity(0.1))
+        .padding(.horizontal, 8)
+        .background(color.opacity(0.08))
         .cornerRadius(15)
     }
 }
@@ -208,9 +210,15 @@ struct QuestionReviewCard: View {
                             .foregroundColor(.white)
                     )
                 
-                Text(question.question)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(question.question)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(question.type == "textField" ? "Written Answer" : "Multiple Choice")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 
@@ -222,21 +230,66 @@ struct QuestionReviewCard: View {
             .background(headerColor)
             .cornerRadius(15)
             
-            // Answer Options
-            VStack(spacing: 10) {
-                ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
-                    ReviewAnswerOption(
-                        option: option,
-                        index: index,
-                        isCorrect: index == question.correctAnswerIndex,
-                        isSelected: index == question.selectedAnswerIndex
-                    )
+            // Answer Content
+            if question.type == "textField" {
+                // Text field answer review
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "pencil.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("Your Answer:")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                        }
+                        
+                        Text(question.userAnswer ?? "No answer provided")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(10)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "lightbulb.fill")
+                                .foregroundColor(.orange)
+                            Text("Suggested Answer:")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        Text(question.correctAnswer)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(10)
+                    }
                 }
+                .padding(.horizontal)
+            } else {
+                // Multiple choice answer options
+                VStack(spacing: 10) {
+                    ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
+                        ReviewAnswerOption(
+                            option: option,
+                            index: index,
+                            isCorrect: index == question.correctAnswerIndex,
+                            isSelected: index == question.selectedAnswerIndex
+                        )
+                    }
+                }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
             
-            // Explanation if wrong
-            if !isCorrect {
+            // Explanation if wrong (multiple choice only)
+            if !isCorrect && question.type != "textField" {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "lightbulb.fill")
@@ -253,7 +306,7 @@ struct QuestionReviewCard: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Text("Correct answer: \(question.options[question.correctAnswerIndex])")
+                    Text("Correct answer: \(question.correctAnswer)")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.green)
@@ -352,5 +405,58 @@ struct ReviewAnswerOption: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(borderColor, lineWidth: isCorrect || isSelected ? 2 : 1)
         )
+    }
+}
+
+// Preview stuff
+struct QuizReviewView_Previews: PreviewProvider {
+    static var sampleQuiz: DailyQuiz {
+        let dq = DailyQuiz(
+            date: Date(),
+            examTimelineId: UUID(),
+            dayNumber: 1,
+            topic: "Sample Quiz"
+        )
+
+        // Placeholder questions
+        let q1 = QuizQuestion(
+            question: "What is 2 + 2?",
+            options: ["3", "4", "5", "6"],
+            correctAnswerIndex: 1,
+            topic: dq.topic,
+            type: "multipleChoice"
+        )
+        q1.selectedAnswerIndex = 1 // correct
+
+        let q2 = QuizQuestion(
+            question: "Pick the colour red",
+            options: ["Red", "Green", "Blue", "Yellow"],
+            correctAnswerIndex: 0,
+            topic: dq.topic,
+            type: "multipleChoice"
+        )
+        q2.selectedAnswerIndex = 2 // wrong
+
+        let q3 = QuizQuestion(
+            question: "Write a greeting.",
+            options: ["Hello", "", "", ""], // placeholder for textField
+            correctAnswerIndex: 0,
+            topic: dq.topic,
+            type: "textField"
+        )
+        q3.userAnswer = "Hello" // what the user typed
+
+        dq.questions = [q1, q2, q3]
+        dq.isCompleted = true
+        dq.completedDate = Date()
+        dq.score = 80
+
+        return dq
+    }
+
+    static var previews: some View {
+        NavigationStack {
+            QuizReviewView(quiz: sampleQuiz)
+        }
     }
 }
