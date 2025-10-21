@@ -62,24 +62,33 @@ struct Provider: TimelineProvider {
         
         let appGroupID = "group.A4.RETHINKA"
         
-        // Use groupContainer parameter for shared App Group
+        // CRITICAL FIX: Use the SAME configuration as main app
+        guard let appGroupURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: appGroupID
+        ) else {
+            print("Widget ERROR: Cannot access App Group!")
+            fatalError("Widget: App Groups not configured")
+        }
+        
+        let storeURL = appGroupURL.appendingPathComponent("RETHINKA.sqlite")
+        print("Widget: Using shared storage at: \(storeURL.path)")
+        
+        // Use EXACT same configuration as main app
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
-            allowsSave: true,
-            groupContainer: .identifier("group.A4.RETHINKA"),
-            cloudKitDatabase: .none // Use .private / .public if syncing with CloudKit
+            url: storeURL,
+            cloudKitDatabase: .none
         )
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print("Widget: ModelContainer created with App Group successfully")
+            print("Widget: ModelContainer created successfully")
             return container
         } catch {
-            fatalError("Widget: Failed to create ModelContainer with App Group: \(error)")
+            print("Widget ERROR: Failed to create ModelContainer: \(error)")
+            fatalError("Widget: Failed to create ModelContainer: \(error)")
         }
     }
-
     
     func placeholder(in context: Context) -> QuizEntry {
         QuizEntry(
@@ -108,18 +117,12 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuizEntry>) -> ()) {
         let entry = fetchCurrentEntry()
         
-        // Refresh widget more frequently - every 15 minutes, or at midnight for new day
         let calendar = Calendar.current
         let now = Date()
-        
-        // Calculate next midnight
         let midnight = calendar.startOfDay(for: now.addingTimeInterval(86400))
+        let fifteenMin = now.addingTimeInterval(900)
         
-        // Calculate next 15-minute interval
-        let nextQuarter = now.addingTimeInterval(900) // 15 minutes
-        
-        // Use whichever comes first
-        let nextUpdate = nextQuarter < midnight ? nextQuarter : midnight
+        let nextUpdate = fifteenMin < midnight ? fifteenMin : midnight
         
         print("Widget: Next update scheduled for \(nextUpdate)")
         
@@ -130,6 +133,8 @@ struct Provider: TimelineProvider {
     private func fetchCurrentEntry() -> QuizEntry {
         let context = ModelContext(modelContainer)
         
+        print("Widget: Starting data fetch...")
+        
         // Fetch active timelines
         let timelineDescriptor = FetchDescriptor<ExamTimeline>(
             predicate: #Predicate { $0.isActive },
@@ -137,10 +142,12 @@ struct Provider: TimelineProvider {
         )
         
         let timelines = (try? context.fetch(timelineDescriptor)) ?? []
+        print("Widget: Found \(timelines.count) active timelines")
         
         // Convert to snapshots
         let timelineSnapshots = timelines.map { timeline in
-            TimelineSnapshot(
+            print("Widget: Timeline '\(timeline.examName)' has \(timeline.dailyQuizzes.count) quizzes")
+            return TimelineSnapshot(
                 id: timeline.id,
                 examName: timeline.examName,
                 examDate: timeline.examDate,
@@ -151,26 +158,28 @@ struct Provider: TimelineProvider {
             )
         }
         
-        // Get today's quizzes across all timelines
+        // Get today's quizzes
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
+        print("Widget: Today is \(today)")
         
         var todayQuizzes: [QuizSnapshot] = []
         var allMistakes: [MistakeSnapshot] = []
         
         for timeline in timelines {
-            // Filter for today's quizzes - including those with empty questions (newly generated but not populated yet)
+            print("Widget: Checking timeline '\(timeline.examName)'")
+            
             let quizzesToday = timeline.dailyQuizzes.filter { quiz in
-                calendar.isDate(quiz.date, inSameDayAs: today)
+                let quizDate = calendar.startOfDay(for: quiz.date)
+                let isToday = calendar.isDate(quiz.date, inSameDayAs: today)
+                print("Widget: Quiz '\(quiz.topic)' date=\(quizDate) isToday=\(isToday) hasQuestions=\(quiz.questions.count)")
+                return isToday
             }
             
-            // Map quizzes to snapshots - make sure we capture incomplete ones
+            print("Widget: Found \(quizzesToday.count) quizzes for today in '\(timeline.examName)'")
+            
             todayQuizzes.append(contentsOf: quizzesToday.map { quiz in
                 let incorrectCount = quiz.questions.filter { !$0.isAnsweredCorrectly && $0.isAnswered }.count
-                
-                // Debug: Print quiz status
-                print("Widget: Quiz '\(quiz.topic)' - isCompleted: \(quiz.isCompleted), questionCount: \(quiz.questions.count)")
-                
                 return QuizSnapshot(
                     id: quiz.id,
                     timelineId: timeline.id,
@@ -183,7 +192,7 @@ struct Provider: TimelineProvider {
                 )
             })
             
-            // Collect mistakes from all completed quizzes (not just today's)
+            // Collect mistakes
             for quiz in timeline.dailyQuizzes where quiz.isCompleted {
                 for question in quiz.questions where !question.isAnsweredCorrectly && question.timesAnsweredIncorrectly > 0 {
                     allMistakes.append(MistakeSnapshot(
@@ -197,12 +206,10 @@ struct Provider: TimelineProvider {
             }
         }
         
-        // Sort mistakes by times incorrect (most frequent first)
         let topMistakes = Array(allMistakes.sorted { $0.timesIncorrect > $1.timesIncorrect }.prefix(5))
         
-        // Debug: Print what we found
-        print("Widget: Found \(todayQuizzes.count) quizzes today")
-        print("Widget: Incomplete count: \(todayQuizzes.filter { !$0.isCompleted }.count)")
+        print("Widget: Total today's quizzes: \(todayQuizzes.count)")
+        print("Widget: Incomplete: \(todayQuizzes.filter { !$0.isCompleted }.count)")
         
         return QuizEntry(
             date: Date(),
@@ -236,7 +243,7 @@ struct RETHINKAWidgetEntryView: View {
     }
 }
 
-// MARK: - Small Widget (Single Timeline)
+// MARK: - Small Widget
 struct SmallWidgetView: View {
     let entry: QuizEntry
     
@@ -295,11 +302,23 @@ struct SmallWidgetView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: "square.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+                
+                Text("No Active\nTimelines")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-// MARK: - Medium Widget (Today's Quizzes + Mistakes)
+// MARK: - Medium Widget
 struct MediumWidgetView: View {
     let entry: QuizEntry
     
@@ -362,7 +381,6 @@ struct MediumWidgetView: View {
                 .cornerRadius(8)
             }
             
-            // Fix: Check for ALL today's quizzes, not just after filtering for review section
             if entry.todayQuizzes.isEmpty {
                 Spacer()
                 HStack {
@@ -379,12 +397,10 @@ struct MediumWidgetView: View {
                 }
             } else {
                 VStack(spacing: 4) {
-                    // Show incomplete quizzes first
                     ForEach(incompleteQuizzes.prefix(entry.topMistakes.isEmpty ? 3 : 2)) { quiz in
                         QuizRowView(quiz: quiz, isCompleted: false, showTimelineName: entry.timelines.count > 1)
                     }
                     
-                    // Then show completed quizzes if there's room
                     if incompleteQuizzes.count < (entry.topMistakes.isEmpty ? 3 : 2) {
                         ForEach(completedQuizzes.prefix((entry.topMistakes.isEmpty ? 3 : 2) - incompleteQuizzes.count)) { quiz in
                             QuizRowView(quiz: quiz, isCompleted: true, showTimelineName: entry.timelines.count > 1)
@@ -400,7 +416,7 @@ struct MediumWidgetView: View {
     }
 }
 
-// MARK: - Large Widget (Full Overview with Mistakes)
+// MARK: - Large Widget
 struct LargeWidgetView: View {
     let entry: QuizEntry
     
@@ -518,7 +534,6 @@ struct LargeWidgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
 
 // MARK: - Lock Screen Widgets
 struct AccessoryCircularView: View {
@@ -739,30 +754,6 @@ extension Color {
 }
 
 // MARK: - Preview
-#Preview(as: .systemSmall) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
-        todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: true, score: 0.85, incorrectCount: 2)
-        ],
-        topMistakes: []
-    )
-}
-
 #Preview(as: .systemMedium) {
     RETHINKAWidget()
 } timeline: {
@@ -784,144 +775,6 @@ extension Color {
             QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
             QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Networking", dayNumber: 3, isCompleted: true, score: 0.90, incorrectCount: 1)
         ],
-        topMistakes: [
-            MistakeSnapshot(id: UUID(), topic: "Core Data", timelineName: "iOS Development", question: "What is the difference between NSManagedObject and NSManagedObjectContext?", timesIncorrect: 3)
-        ]
-    )
-}
-
-
-// MARK: - Preview
-#Preview(as: .systemSmall) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
-        todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: true, score: 0.85, incorrectCount: 2)
-        ],
         topMistakes: []
     )
 }
-
-#Preview(as: .systemMedium) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
-        todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Networking", dayNumber: 3, isCompleted: true, score: 0.90, incorrectCount: 1)
-        ],
-        topMistakes: [
-            MistakeSnapshot(id: UUID(), topic: "Core Data", timelineName: "iOS Development", question: "What is the difference between NSManagedObject and NSManagedObjectContext?", timesIncorrect: 3)
-        ]
-    )
-}
-
-#Preview(as: .systemLarge) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            ),
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "Machine Learning",
-                examDate: Date().addingTimeInterval(86400 * 12),
-                daysUntilExam: 12,
-                completedQuizzes: 3,
-                totalQuizzes: 36,
-                progressPercentage: 0.08
-            )
-        ],
-        todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Networking", dayNumber: 3, isCompleted: true, score: 0.90, incorrectCount: 1),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "Machine Learning", topic: "Neural Networks", dayNumber: 1, isCompleted: true, score: 0.75, incorrectCount: 3)
-        ],
-        topMistakes: [
-            MistakeSnapshot(id: UUID(), topic: "Core Data", timelineName: "iOS Development", question: "What is the difference between NSManagedObject and NSManagedObjectContext?", timesIncorrect: 3),
-            MistakeSnapshot(id: UUID(), topic: "SwiftUI", timelineName: "iOS Development", question: "Explain the view lifecycle in SwiftUI", timesIncorrect: 2)
-        ]
-    )
-}
-
-#Preview(as: .accessoryCircular) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
-        todayQuizzes: [],
-        topMistakes: []
-    )
-}
-
-#Preview(as: .accessoryRectangular) {
-    RETHINKAWidget()
-} timeline: {
-    QuizEntry(
-        date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
-        todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0)
-        ],
-        topMistakes: []
-    )
-}
-
