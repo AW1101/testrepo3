@@ -25,6 +25,11 @@ struct TimelineView: View {
         }
     }
     
+    private var mistakesCount: Int {
+        // Count completed quizzes that likely had mistakes (score < 100%)
+        timeline.dailyQuizzes.filter { $0.isCompleted && (($0.score ?? 0) < 1.0) }.count
+    }
+    
     // Group quizzes by day
     private var quizzesByDay: [(Date, [DailyQuiz])] {
         let grouped = Dictionary(grouping: sortedQuizzes) { quiz in
@@ -94,6 +99,41 @@ struct TimelineView: View {
                     }
                     .padding(.top)
                     
+                    //review mistakes button
+                    if mistakesCount > 0 {
+                        NavigationLink(destination: TimelineMistakesView(title: timeline.examName, dailyQuizzes: sortedQuizzes)) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                    .padding(.leading, 6)
+
+                                Text("Review all mistakes")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+
+                                Spacer(minLength: 8)
+
+                                // number of mistakes
+                                Text("\(mistakesCount)")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 8)
+                                    .background(Color.white.opacity(0.18))
+                                    .clipShape(Capsule())
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(Theme.primary)
+                            .cornerRadius(12)
+                            .shadow(color: Theme.primary.opacity(0.15), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.horizontal, 40)
+                    }
+
                     // Today's Quizzes Highlight
                     if !todayQuizzes.isEmpty {
                         VStack(alignment: .leading, spacing: 15) {
@@ -114,6 +154,8 @@ struct TimelineView: View {
                         }
                         .padding(.horizontal)
                     }
+                    
+
                     
                     // All Quizzes Timeline (Grouped by Day)
                     VStack(alignment: .leading, spacing: 15) {
@@ -343,6 +385,7 @@ struct QuizTimelineCard: View {
                     Text(quiz.topic)
                         .font(.headline)
                         .foregroundColor(.primary)
+                        .multilineTextAlignment(.leading)
                     
                     HStack {
                         Text("Day \(quiz.dayNumber)")
@@ -396,7 +439,7 @@ struct TimelineView_Previews: PreviewProvider {
         let timeline = ExamTimeline(
             examName: "Sample Exam",
             examBrief: "A short description of the sample exam.",
-            examDate: Date(),
+            examDate: Date()
         )
         
         let today = Date()
@@ -404,7 +447,7 @@ struct TimelineView_Previews: PreviewProvider {
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
         
         // Placeholder quizzes
-        let q1 = DailyQuiz(date: yesterday, examTimelineId: timeline.id, dayNumber: 1, topic: "Yesterday Quiz 1")
+        let q1 = DailyQuiz(date: yesterday, examTimelineId: timeline.id, dayNumber: 1, topic: "Yesterday quiz 1")
         q1.isCompleted = true
         q1.score = 0.8
         

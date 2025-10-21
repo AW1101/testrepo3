@@ -220,7 +220,7 @@ struct TimelineManagementCard: View {
                     .frame(width: 50, height: 50)
                     .overlay(
                         VStack(spacing: 2) {
-                            Text("\(Int(progress * 100))")
+                            Text("\(Int(progress * 100))%")
                                 .font(.headline)
                                 .foregroundColor(.white)
                         }

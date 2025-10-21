@@ -31,17 +31,15 @@ struct HomeView: View {
                     DailyQuizGenerationOverlay(progress: generationProgress, status: generationStatus)
                 } else {
                     VStack(spacing: 30) {
-                        // App "Logo"/Title (will add a proper logo in assets later)
                         VStack(spacing: 10) {
                             Circle()
                                 .fill(Theme.primary)
                                 .frame(width: 100, height: 100)
                                 .overlay(
-                                    Image(systemName: "brain.head.profile")
+                                    Image("rethinkalogo")
                                         .resizable()
                                         .scaledToFit()
-                                        .frame(width: 50, height: 50)
-                                        .foregroundColor(.white)
+                                        .frame(width: 80, height: 80)
                                 )
                             
                             Text("RETHINKA")
@@ -94,29 +92,43 @@ struct HomeView: View {
                                     Text("Create New Timeline")
                                 }
                                 .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .padding(.horizontal)
                             }
                             .buttonStyle(Theme.PrimaryButton())
-                            
-                            HStack(spacing: 20) {
+
+                            HStack(spacing: 16) {
+                                // Manage Timelines
                                 Button(action: {
                                     showingManageTimelines = true
                                 }) {
-                                    VStack {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "list.bullet")
-                                            .font(.title2)
+                                        Text("Manage")
                                     }
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 52)
+                                    .padding(.horizontal)
+                                    .foregroundColor(.white)
+                                    .background(Theme.secondary)
+                                    .cornerRadius(18)
                                 }
-                                .buttonStyle(Theme.CircularButton(backgroundColor: Theme.secondary))
-                                
+
+                                // Settings
                                 Button(action: {
                                     showingSettings = true
                                 }) {
-                                    VStack {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "gearshape.fill")
-                                            .font(.title2)
+                                        Text("Settings")
                                     }
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 52)
+                                    .padding(.horizontal)
+                                    .foregroundColor(.white)
+                                    .background(Theme.secondary)
+                                    .cornerRadius(18)
                                 }
-                                .buttonStyle(Theme.CircularButton(backgroundColor: Theme.secondary))
                             }
                         }
                         .padding(.horizontal)

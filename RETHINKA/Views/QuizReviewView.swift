@@ -51,7 +51,7 @@ struct QuizReviewView: View {
                                 .frame(width: 70, height: 70)
                                 .overlay(
                                     VStack(spacing: 2) {
-                                        Text("\(scorePercentage)")
+                                        Text("\(scorePercentage)%")
                                             .font(.title2)
                                             .fontWeight(.bold)
                                             .foregroundColor(.white)
