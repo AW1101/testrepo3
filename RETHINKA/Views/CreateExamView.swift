@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 struct CreateExamView: View {
     @Environment(\.modelContext) private var modelContext
@@ -408,6 +409,10 @@ struct CreateExamView: View {
         do {
             try modelContext.save()
             NotificationManager.shared.scheduleDailyQuizNotification(for: timeline)
+            
+            // CRITICAL: Force widget to refresh immediately
+            WidgetCenter.shared.reloadAllTimelines()
+            print("App: Forced widget refresh after timeline creation")
             
             generationProgress = 1.0
             generationStatus = "Complete!"

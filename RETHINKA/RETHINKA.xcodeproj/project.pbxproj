@@ -45,6 +45,7 @@
 		38A2528C2E9E1BA200FC1F8D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		38A252B32E9E1BE900FC1F8D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		38A252CF2E9E1D3400FC1F8D /* RETHINKAWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RETHINKAWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		38CA08E62EA752B700BD4325 /* RETHINKAWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RETHINKAWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -73,6 +74,15 @@
 			);
 			target = 38A252CE2E9E1D3400FC1F8D /* RETHINKAWidgetExtension */;
 		};
+		38CA08E22EA7320300BD4325 /* Exceptions for "Models" folder in "RETHINKAWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CourseNote.swift,
+				ExamTimeline.swift,
+				QuizQuestion.swift,
+			);
+			target = 38A252CE2E9E1D3400FC1F8D /* RETHINKAWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +90,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				38A252732E9E156200FC1F8D /* Exceptions for "Models" folder in "RETHINKA" target */,
+				38CA08E22EA7320300BD4325 /* Exceptions for "Models" folder in "RETHINKAWidgetExtension" target */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -130,6 +141,7 @@
 		3886F2842E9E0CAE004E0D76 = {
 			isa = PBXGroup;
 			children = (
+				38CA08E62EA752B700BD4325 /* RETHINKAWidgetExtension.entitlements */,
 				38A252462E9E0D4900FC1F8D /* RETHINKAApp.swift */,
 				38A252532E9E14BB00FC1F8D /* Models */,
 				38A252542E9E14BB00FC1F8D /* Utilities */,
@@ -415,9 +427,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RETHINKA.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DR2SLY9DFU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -430,7 +443,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA;
+				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAAA;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -447,9 +460,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RETHINKA.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DR2SLY9DFU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -462,7 +476,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA;
+				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAAA;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -479,8 +493,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = RETHINKAWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = DR2SLY9DFU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RETHINKAWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RETHINKAWidget;
@@ -491,7 +507,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAAA.widget.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -508,8 +524,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = RETHINKAWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = DR2SLY9DFU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RETHINKAWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RETHINKAWidget;
@@ -520,7 +538,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.A4.RETHINKA.RETHINKAAA.widget.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
