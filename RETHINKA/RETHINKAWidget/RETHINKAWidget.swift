@@ -7,7 +7,6 @@
 
 // Still all placeholder, needs to be worked on once main stuff is done
 
-
 import WidgetKit
 import SwiftUI
 import SwiftData
@@ -15,12 +14,13 @@ import SwiftData
 // MARK: - Timeline Entry
 struct QuizEntry: TimelineEntry {
     let date: Date
-    let timelines: [TimelineSnapshot]
+    let primaryTimeline: TimelineSnapshot?
     let todayQuizzes: [QuizSnapshot]
     let topMistakes: [MistakeSnapshot]
+    let mistakeRotationIndex: Int
 }
 
-// MARK: - Data Snapshots (Codable versions for widget)
+// MARK: - Data Snapshots
 struct TimelineSnapshot: Identifiable {
     let id: UUID
     let examName: String
@@ -33,20 +33,15 @@ struct TimelineSnapshot: Identifiable {
 
 struct QuizSnapshot: Identifiable {
     let id: UUID
-    let timelineId: UUID
-    let timelineName: String
     let topic: String
-    let dayNumber: Int
     let isCompleted: Bool
     let score: Double?
-    let incorrectCount: Int
 }
 
 struct MistakeSnapshot: Identifiable {
     let id: UUID
-    let topic: String
-    let timelineName: String
     let question: String
+    let correctAnswer: String
     let timesIncorrect: Int
 }
 
@@ -62,7 +57,6 @@ struct Provider: TimelineProvider {
         
         let appGroupID = "group.A4.RETHINKA"
         
-        // CRITICAL FIX: Use the SAME configuration as main app
         guard let appGroupURL = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
         ) else {
@@ -71,9 +65,7 @@ struct Provider: TimelineProvider {
         }
         
         let storeURL = appGroupURL.appendingPathComponent("RETHINKA.sqlite")
-        print("Widget: Using shared storage at: \(storeURL.path)")
         
-        // Use EXACT same configuration as main app
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             url: storeURL,
@@ -82,10 +74,8 @@ struct Provider: TimelineProvider {
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print("Widget: ModelContainer created successfully")
             return container
         } catch {
-            print("Widget ERROR: Failed to create ModelContainer: \(error)")
             fatalError("Widget: Failed to create ModelContainer: \(error)")
         }
     }
@@ -93,47 +83,65 @@ struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> QuizEntry {
         QuizEntry(
             date: Date(),
-            timelines: [
-                TimelineSnapshot(
-                    id: UUID(),
-                    examName: "Sample Exam",
-                    examDate: Date().addingTimeInterval(86400 * 7),
-                    daysUntilExam: 7,
-                    completedQuizzes: 5,
-                    totalQuizzes: 21,
-                    progressPercentage: 0.24
-                )
-            ],
+            primaryTimeline: TimelineSnapshot(
+                id: UUID(),
+                examName: "Sample Exam",
+                examDate: Date().addingTimeInterval(86400 * 7),
+                daysUntilExam: 7,
+                completedQuizzes: 5,
+                totalQuizzes: 21,
+                progressPercentage: 0.24
+            ),
             todayQuizzes: [],
-            topMistakes: []
+            topMistakes: [],
+            mistakeRotationIndex: 0
         )
     }
     
     func getSnapshot(in context: Context, completion: @escaping (QuizEntry) -> ()) {
-        let entry = fetchCurrentEntry()
+        let entry = fetchCurrentEntry(rotationIndex: 0)
         completion(entry)
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuizEntry>) -> ()) {
-        let entry = fetchCurrentEntry()
-        
-        let calendar = Calendar.current
-        let now = Date()
-        let midnight = calendar.startOfDay(for: now.addingTimeInterval(86400))
-        let fifteenMin = now.addingTimeInterval(900)
-        
-        let nextUpdate = fifteenMin < midnight ? fifteenMin : midnight
-        
-        print("Widget: Next update scheduled for \(nextUpdate)")
-        
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
+        var entries: [QuizEntry] = []
+        let baseData = fetchCurrentEntry(rotationIndex: 0)
+
+        // If there are mistakes, create one timeline entry per rotation start index,
+        // stepping every 30 seconds so medium (1) and large (5) rotate through the full list.
+        let rotationInterval: TimeInterval = 30
+
+        if !baseData.topMistakes.isEmpty {
+            let now = Date()
+            let count = baseData.topMistakes.count
+
+            for i in 0..<count {
+                let entryDate = now.addingTimeInterval(Double(i) * rotationInterval)
+                // We pass the full mistakes list but with the rotationIndex set to i
+                entries.append(QuizEntry(
+                    date: entryDate,
+                    primaryTimeline: baseData.primaryTimeline,
+                    todayQuizzes: baseData.todayQuizzes,
+                    topMistakes: baseData.topMistakes,
+                    mistakeRotationIndex: i
+                ))
+            }
+
+            // Schedule next full refresh after one full rotation so data is refreshed
+            let nextRefresh = now.addingTimeInterval(Double(max(1, count)) * rotationInterval)
+            let timeline = Timeline(entries: entries, policy: .after(nextRefresh))
+            completion(timeline)
+        } else {
+            // No mistakes: single static entry, refresh in 5 minutes
+            entries.append(baseData)
+            let nextRefresh = Date().addingTimeInterval(300)
+            let timeline = Timeline(entries: entries, policy: .after(nextRefresh))
+            completion(timeline)
+        }
     }
     
-    private func fetchCurrentEntry() -> QuizEntry {
+    private func fetchCurrentEntry(rotationIndex: Int) -> QuizEntry {
         let context = ModelContext(modelContainer)
-        
-        print("Widget: Starting data fetch...")
         
         // Fetch active timelines
         let timelineDescriptor = FetchDescriptor<ExamTimeline>(
@@ -142,12 +150,12 @@ struct Provider: TimelineProvider {
         )
         
         let timelines = (try? context.fetch(timelineDescriptor)) ?? []
-        print("Widget: Found \(timelines.count) active timelines")
         
-        // Convert to snapshots
-        let timelineSnapshots = timelines.map { timeline in
-            print("Widget: Timeline '\(timeline.examName)' has \(timeline.dailyQuizzes.count) quizzes")
-            return TimelineSnapshot(
+        // Get PRIMARY timeline (closest exam date)
+        let primaryTimeline = timelines.first
+        
+        let primarySnapshot: TimelineSnapshot? = primaryTimeline.map { timeline in
+            TimelineSnapshot(
                 id: timeline.id,
                 examName: timeline.examName,
                 examDate: timeline.examDate,
@@ -158,64 +166,49 @@ struct Provider: TimelineProvider {
             )
         }
         
-        // Get today's quizzes
+        // Get today's quizzes from PRIMARY timeline only
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        print("Widget: Today is \(today)")
         
         var todayQuizzes: [QuizSnapshot] = []
         var allMistakes: [MistakeSnapshot] = []
         
-        for timeline in timelines {
-            print("Widget: Checking timeline '\(timeline.examName)'")
-            
+        if let timeline = primaryTimeline {
             let quizzesToday = timeline.dailyQuizzes.filter { quiz in
-                let quizDate = calendar.startOfDay(for: quiz.date)
-                let isToday = calendar.isDate(quiz.date, inSameDayAs: today)
-                print("Widget: Quiz '\(quiz.topic)' date=\(quizDate) isToday=\(isToday) hasQuestions=\(quiz.questions.count)")
-                return isToday
+                calendar.isDate(quiz.date, inSameDayAs: today)
             }
             
-            print("Widget: Found \(quizzesToday.count) quizzes for today in '\(timeline.examName)'")
-            
-            todayQuizzes.append(contentsOf: quizzesToday.map { quiz in
-                let incorrectCount = quiz.questions.filter { !$0.isAnsweredCorrectly && $0.isAnswered }.count
-                return QuizSnapshot(
+            todayQuizzes = quizzesToday.map { quiz in
+                QuizSnapshot(
                     id: quiz.id,
-                    timelineId: timeline.id,
-                    timelineName: timeline.examName,
                     topic: quiz.topic.isEmpty ? "Daily Quiz" : quiz.topic,
-                    dayNumber: quiz.dayNumber,
                     isCompleted: quiz.isCompleted,
-                    score: quiz.score,
-                    incorrectCount: incorrectCount
+                    score: quiz.score
                 )
-            })
+            }
             
-            // Collect mistakes
+            // Collect ALL mistakes from completed quizzes
             for quiz in timeline.dailyQuizzes where quiz.isCompleted {
                 for question in quiz.questions where !question.isAnsweredCorrectly && question.timesAnsweredIncorrectly > 0 {
                     allMistakes.append(MistakeSnapshot(
                         id: question.id,
-                        topic: quiz.topic,
-                        timelineName: timeline.examName,
                         question: question.question,
+                        correctAnswer: question.correctAnswer,
                         timesIncorrect: question.timesAnsweredIncorrectly
                     ))
                 }
             }
         }
         
-        let topMistakes = Array(allMistakes.sorted { $0.timesIncorrect > $1.timesIncorrect }.prefix(5))
-        
-        print("Widget: Total today's quizzes: \(todayQuizzes.count)")
-        print("Widget: Incomplete: \(todayQuizzes.filter { !$0.isCompleted }.count)")
+        // Sort mistakes by frequency
+        let topMistakes = allMistakes.sorted { $0.timesIncorrect > $1.timesIncorrect }
         
         return QuizEntry(
             date: Date(),
-            timelines: timelineSnapshots,
+            primaryTimeline: primarySnapshot,
             todayQuizzes: todayQuizzes,
-            topMistakes: topMistakes
+            topMistakes: topMistakes,
+            mistakeRotationIndex: rotationIndex
         )
     }
 }
@@ -247,36 +240,28 @@ struct RETHINKAWidgetEntryView: View {
 struct SmallWidgetView: View {
     let entry: QuizEntry
     
-    private var primaryTimeline: TimelineSnapshot? {
-        entry.timelines.first
-    }
-    
-    private var todayQuizCount: Int {
+    private var availableQuizCount: Int {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
     
     var body: some View {
-        if let timeline = primaryTimeline {
+        if let timeline = entry.primaryTimeline {
             VStack(spacing: 6) {
-                HStack {
-                    Image(systemName: "square.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                    Spacer()
-                }
-                
                 Spacer()
                 
                 ZStack {
                     Circle()
                         .fill(Color.white.opacity(0.2))
-                        .frame(width: 55, height: 55)
+                        .frame(width: 70, height: 70)
                     
                     VStack(spacing: 1) {
                         Text("\(timeline.daysUntilExam)")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(.system(size: 26, weight: .bold))
                             .foregroundColor(.white)
-                        Text("days")
+                        Text("days til")
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.9))
+                        Text("exam")
                             .font(.system(size: 9))
                             .foregroundColor(.white.opacity(0.9))
                     }
@@ -285,31 +270,35 @@ struct SmallWidgetView: View {
                 Text(timeline.examName)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.8)
                 
-                if todayQuizCount > 0 {
-                    Text("\(todayQuizCount) quiz\(todayQuizCount == 1 ? "" : "es") today")
+                if availableQuizCount > 0 {
+                    Text("\(availableQuizCount) \(availableQuizCount == 1 ? "quiz" : "quizzes") available")
                         .font(.system(size: 9))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.white.opacity(0.85))
+                        .lineLimit(1)
                 } else {
                     Text("All done!")
                         .font(.system(size: 9))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 
                 Spacer()
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VStack(spacing: 6) {
-                Image(systemName: "square.fill")
-                    .font(.system(size: 24))
+            VStack(spacing: 8) {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 28))
                     .foregroundColor(.white)
                 
                 Text("No Active\nTimelines")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
             }
@@ -322,91 +311,109 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
     let entry: QuizEntry
     
-    private var incompleteQuizzes: [QuizSnapshot] {
-        entry.todayQuizzes.filter { !$0.isCompleted }
-    }
-    
-    private var completedQuizzes: [QuizSnapshot] {
-        entry.todayQuizzes.filter { $0.isCompleted }
+    private var availableQuizCount: Int {
+        entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "square.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.white)
-                
-                Text(entry.topMistakes.isEmpty ? "Today's Quizzes" : "Review & Quizzes")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                if !incompleteQuizzes.isEmpty {
-                    Text("\(incompleteQuizzes.count) left")
-                        .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.8))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.2))
-                        .cornerRadius(6)
+            // Header
+            if let timeline = entry.primaryTimeline {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(Color.white.opacity(0.3))
+                        .frame(width: 38, height: 38)
+                        .overlay(
+                            VStack(spacing: 0) {
+                                Text("\(timeline.daysUntilExam)")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text("days")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(timeline.examName)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        Text("\(availableQuizCount) \(availableQuizCount == 1 ? "quiz" : "quizzes") available")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    
+                    Spacer()
                 }
             }
             
+            // Show rotating mistake
             if !entry.topMistakes.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
+                let currentMistake = entry.topMistakes[entry.mistakeRotationIndex % entry.topMistakes.count]
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 10))
                             .foregroundColor(.orange)
                         Text("Review This:")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.orange)
+                        
+                        Spacer()
+                        
+                        if entry.topMistakes.count > 1 {
+                            Text("\(entry.mistakeRotationIndex + 1)/\(entry.topMistakes.count)")
+                                .font(.system(size: 9))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
                     
-                    Text(entry.topMistakes[0].topic)
-                        .font(.system(size: 11, weight: .medium))
+                    Text(currentMistake.question)
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.white)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                     
-                    Text(entry.topMistakes[0].question)
-                        .font(.system(size: 9))
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(2)
+                    HStack(spacing: 4) {
+                        Text("A:")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.green)
+                        Text(currentMistake.correctAnswer)
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .padding(8)
+                .padding(9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.2))
-                .cornerRadius(8)
-            }
-            
-            if entry.todayQuizzes.isEmpty {
+                .cornerRadius(10)
+            } else if !entry.todayQuizzes.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(entry.todayQuizzes.prefix(3)) { quiz in
+                        QuizRowCompact(quiz: quiz)
+                    }
+                }
+            } else {
                 Spacer()
                 HStack {
                     Spacer()
-                    VStack(spacing: 4) {
+                    VStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20))
+                            .font(.system(size: 22))
                             .foregroundColor(.white.opacity(0.6))
-                        Text("No quizzes today")
-                            .font(.system(size: 10))
+                        Text("All caught up!")
+                            .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.8))
                     }
                     Spacer()
                 }
-            } else {
-                VStack(spacing: 4) {
-                    ForEach(incompleteQuizzes.prefix(entry.topMistakes.isEmpty ? 3 : 2)) { quiz in
-                        QuizRowView(quiz: quiz, isCompleted: false, showTimelineName: entry.timelines.count > 1)
-                    }
-                    
-                    if incompleteQuizzes.count < (entry.topMistakes.isEmpty ? 3 : 2) {
-                        ForEach(completedQuizzes.prefix((entry.topMistakes.isEmpty ? 3 : 2) - incompleteQuizzes.count)) { quiz in
-                            QuizRowView(quiz: quiz, isCompleted: true, showTimelineName: entry.timelines.count > 1)
-                        }
-                    }
-                }
+                Spacer()
             }
             
             Spacer(minLength: 0)
@@ -416,122 +423,230 @@ struct MediumWidgetView: View {
     }
 }
 
-// MARK: - Large Widget
+// MARK: - Large Widget (5 rotating mistakes)
 struct LargeWidgetView: View {
     let entry: QuizEntry
     
-    private var incompleteQuizzes: [QuizSnapshot] {
-        entry.todayQuizzes.filter { !$0.isCompleted }
+    private var availableQuizCount: Int {
+        entry.todayQuizzes.filter { !$0.isCompleted }.count
+    }
+    
+    private var displayMistakes: [MistakeSnapshot] {
+        guard !entry.topMistakes.isEmpty else { return [] }
+        
+        let startIndex = entry.mistakeRotationIndex
+        var mistakes: [MistakeSnapshot] = []
+        
+        for i in 0..<min(5, entry.topMistakes.count) {
+            let index = (startIndex + i) % entry.topMistakes.count
+            mistakes.append(entry.topMistakes[index])
+        }
+        
+        return mistakes
+    }
+    
+    private func rotatingIndicesText(total count: Int, startIndex: Int, maxDisplay: Int = 5) -> String {
+        guard count > 0 else { return "" }
+        let displayedCount = min(maxDisplay, count)
+        var indices: [Int] = []
+        indices.reserveCapacity(displayedCount)
+        for i in 0..<displayedCount {
+            indices.append(((startIndex + i) % count) + 1) // 1-based
+        }
+        return compressRuns(indices)
+    }
+
+    private func compressRuns(_ nums: [Int]) -> String {
+        guard !nums.isEmpty else { return "" }
+        var parts: [String] = []
+        var runStart = nums[0]
+        var prev = nums[0]
+        for n in nums.dropFirst() {
+            if n == prev + 1 {
+                prev = n
+            } else {
+                if runStart == prev {
+                    parts.append("\(runStart)")
+                } else {
+                    parts.append("\(runStart)-\(prev)")
+                }
+                runStart = n
+                prev = n
+            }
+        }
+        if runStart == prev {
+            parts.append("\(runStart)")
+        } else {
+            parts.append("\(runStart)-\(prev)")
+        }
+        return parts.joined(separator: ",")
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "square.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
-                
-                Text("RETHINKA")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Spacer()
+            // Header
+            if let timeline = entry.primaryTimeline {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(Color.white.opacity(0.3))
+                        .frame(width: 46, height: 46)
+                        .overlay(
+                            VStack(spacing: 0) {
+                                Text("\(timeline.daysUntilExam)")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text("days")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(timeline.examName)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        Text("\(availableQuizCount) \(availableQuizCount == 1 ? "quiz" : "quizzes") available")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.8))
+                        
+                        HStack(spacing: 4) {
+                            ProgressView(value: timeline.progressPercentage)
+                                .tint(.white)
+                                .frame(height: 4)
+                            
+                            Text("\(Int(timeline.progressPercentage * 100))%")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    
+                    Spacer()
+                }
             }
             
             Divider()
                 .background(Color.white.opacity(0.3))
+                .padding(.vertical, 2)
             
+            // Mistakes section
             if !entry.topMistakes.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 11))
                             .foregroundColor(.orange)
-                        Text("Topics to Review")
+                        Text("Review These")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        if entry.topMistakes.count > 5 {
+                            let count = entry.topMistakes.count
+                            let start = entry.mistakeRotationIndex % count
+                            let rangeText = rotatingIndicesText(total: count, startIndex: start, maxDisplay: 5)
+                            Text("\(rangeText)/\(count)")
+                                .font(.system(size: 9))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+
                     }
                     
-                    ForEach(entry.topMistakes.prefix(2)) { mistake in
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(mistake.topic)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Text("\(mistake.timesIncorrect)×")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.orange)
-                            }
-                            Text(mistake.question)
-                                .font(.system(size: 9))
-                                .foregroundColor(.white.opacity(0.7))
-                                .lineLimit(2)
-                        }
-                        .padding(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.15))
-                        .cornerRadius(6)
+                    ForEach(displayMistakes) { mistake in
+                        MistakeCardCompact(mistake: mistake)
                     }
                 }
-                
-                Divider()
-                    .background(Color.white.opacity(0.3))
-            }
-            
-            if !entry.timelines.isEmpty {
-                Text("Active Timelines")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                
-                ForEach(entry.timelines.prefix(2)) { timeline in
-                    TimelineRowView(timeline: timeline)
-                }
-                
-                Divider()
-                    .background(Color.white.opacity(0.3))
-            }
-            
-            HStack {
-                Text("Today's Quizzes")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                
+            } else {
                 Spacer()
-                
-                if !incompleteQuizzes.isEmpty {
-                    Text("\(incompleteQuizzes.count) remaining")
-                        .font(.system(size: 9))
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.white.opacity(0.6))
+                    Text("No mistakes to review!")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.8))
+                    Text("Great job!")
+                        .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.7))
                 }
-            }
-            
-            if entry.todayQuizzes.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white.opacity(0.5))
-                        Text("No quizzes today")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    Spacer()
-                }
-                .padding(.vertical, 6)
-            } else {
-                VStack(spacing: 4) {
-                    ForEach(entry.todayQuizzes.prefix(4)) { quiz in
-                        QuizRowView(quiz: quiz, isCompleted: quiz.isCompleted, showTimelineName: entry.timelines.count > 1)
-                    }
-                }
+                .frame(maxWidth: .infinity)
+                Spacer()
             }
             
             Spacer(minLength: 0)
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Compact Components
+struct QuizRowCompact: View {
+    let quiz: QuizSnapshot
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(quiz.isCompleted ? Color.green : Color.white.opacity(0.3))
+                .frame(width: 8, height: 8)
+            
+            Text(quiz.topic)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
+            
+            Spacer(minLength: 4)
+            
+            if quiz.isCompleted {
+                if let score = quiz.score {
+                    Text("\(Int(score * 100))%")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.green)
+            } else {
+                Image(systemName: "circle")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(quiz.isCompleted ? 0.05 : 0.15))
+        .cornerRadius(8)
+    }
+}
+
+struct MistakeCardCompact: View {
+    let mistake: MistakeSnapshot
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(mistake.question)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            HStack(spacing: 4) {
+                Text("A:")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.green)
+                Text(mistake.correctAnswer)
+                    .font(.system(size: 8))
+                    .foregroundColor(.white.opacity(0.75))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.15))
+        .cornerRadius(8)
     }
 }
 
@@ -539,12 +654,8 @@ struct LargeWidgetView: View {
 struct AccessoryCircularView: View {
     let entry: QuizEntry
     
-    private var primaryTimeline: TimelineSnapshot? {
-        entry.timelines.first
-    }
-    
     var body: some View {
-        if let timeline = primaryTimeline {
+        if let timeline = entry.primaryTimeline {
             ZStack {
                 AccessoryWidgetBackground()
                 VStack(spacing: 1) {
@@ -558,8 +669,8 @@ struct AccessoryCircularView: View {
         } else {
             ZStack {
                 AccessoryWidgetBackground()
-                Image(systemName: "square.fill")
-                    .font(.system(size: 20))
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 18))
             }
         }
     }
@@ -568,31 +679,26 @@ struct AccessoryCircularView: View {
 struct AccessoryRectangularView: View {
     let entry: QuizEntry
     
-    private var primaryTimeline: TimelineSnapshot? {
-        entry.timelines.first
-    }
-    
-    private var todayQuizCount: Int {
+    private var availableQuizCount: Int {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
     
     var body: some View {
-        if let timeline = primaryTimeline {
+        if let timeline = entry.primaryTimeline {
             VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Image(systemName: "square.fill")
-                        .font(.system(size: 12))
-                    Text(timeline.examName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                }
+                Text(timeline.examName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
                 
                 HStack(spacing: 8) {
                     Label("\(timeline.daysUntilExam) days", systemImage: "calendar")
                         .font(.system(size: 10))
+                    Text("days")
+                        .font(.system(size: 8))
+                        .opacity(0.8)
                     
-                    if todayQuizCount > 0 {
-                        Label("\(todayQuizCount) quiz\(todayQuizCount == 1 ? "" : "es")", systemImage: "checklist")
+                    if availableQuizCount > 0 {
+                        Label("\(availableQuizCount) left", systemImage: "checklist")
                             .font(.system(size: 10))
                     }
                 }
@@ -600,113 +706,12 @@ struct AccessoryRectangularView: View {
             }
         } else {
             HStack {
-                Image(systemName: "square.fill")
+                Image(systemName: "calendar.badge.plus")
                     .font(.system(size: 14))
-                Text("No active timelines")
+                Text("No timelines")
                     .font(.system(size: 11))
             }
         }
-    }
-}
-
-// MARK: - Supporting Views
-struct QuizRowView: View {
-    let quiz: QuizSnapshot
-    let isCompleted: Bool
-    let showTimelineName: Bool
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(isCompleted ? Color.green : Color.white.opacity(0.3))
-                .frame(width: 6, height: 6)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(quiz.topic)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                if showTimelineName && !quiz.timelineName.isEmpty {
-                    Text(quiz.timelineName)
-                        .font(.system(size: 8))
-                        .foregroundColor(.white.opacity(0.6))
-                        .lineLimit(1)
-                }
-            }
-            
-            Spacer(minLength: 4)
-            
-            if isCompleted {
-                if let score = quiz.score {
-                    Text("\(Int(score * 100))%")
-                        .font(.system(size: 9))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.green)
-            } else {
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "599191"))
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(isCompleted ? 0.08 : 0.15))
-        .cornerRadius(8)
-    }
-}
-
-struct TimelineRowView: View {
-    let timeline: TimelineSnapshot
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "599191"))
-                    .frame(width: 32, height: 32)
-                
-                Text("\(timeline.daysUntilExam)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(timeline.examName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                Text("\(timeline.completedQuizzes)/\(timeline.totalQuizzes) quizzes")
-                    .font(.system(size: 8))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            
-            Spacer(minLength: 4)
-            
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.2), lineWidth: 2.5)
-                    .frame(width: 26, height: 26)
-                
-                Circle()
-                    .trim(from: 0, to: timeline.progressPercentage)
-                    .stroke(Color.white, lineWidth: 2.5)
-                    .frame(width: 26, height: 26)
-                    .rotationEffect(.degrees(-90))
-                
-                Text("\(Int(timeline.progressPercentage * 100))")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundColor(.white)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.08))
-        .cornerRadius(10)
     }
 }
 
@@ -720,7 +725,7 @@ struct RETHINKAWidget: Widget {
                 .containerBackground(Color(hex: "0b6374"), for: .widget)
         }
         .configurationDisplayName("Quiz Progress")
-        .description("Track daily quizzes, review mistakes, and monitor exam timelines.")
+        .description("Track daily quizzes and review mistakes.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
@@ -754,27 +759,31 @@ extension Color {
 }
 
 // MARK: - Preview
-#Preview(as: .systemMedium) {
+#Preview(as: .systemLarge) {
     RETHINKAWidget()
 } timeline: {
     QuizEntry(
         date: .now,
-        timelines: [
-            TimelineSnapshot(
-                id: UUID(),
-                examName: "iOS Development",
-                examDate: Date().addingTimeInterval(86400 * 5),
-                daysUntilExam: 5,
-                completedQuizzes: 8,
-                totalQuizzes: 15,
-                progressPercentage: 0.53
-            )
-        ],
+        primaryTimeline: TimelineSnapshot(
+            id: UUID(),
+            examName: "iOS Development",
+            examDate: Date().addingTimeInterval(86400 * 5),
+            daysUntilExam: 5,
+            completedQuizzes: 8,
+            totalQuizzes: 15,
+            progressPercentage: 0.53
+        ),
         todayQuizzes: [
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "SwiftUI Basics", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Data Persistence", dayNumber: 3, isCompleted: false, score: nil, incorrectCount: 0),
-            QuizSnapshot(id: UUID(), timelineId: UUID(), timelineName: "iOS Development", topic: "Networking", dayNumber: 3, isCompleted: true, score: 0.90, incorrectCount: 1)
+            QuizSnapshot(id: UUID(), topic: "SwiftUI Basics", isCompleted: false, score: nil),
+            QuizSnapshot(id: UUID(), topic: "Data Persistence", isCompleted: false, score: nil)
         ],
-        topMistakes: []
+        topMistakes: [
+            MistakeSnapshot(id: UUID(), question: "What is the difference between @State and @Binding?", correctAnswer: "@State creates storage, @Binding references existing storage", timesIncorrect: 3),
+            MistakeSnapshot(id: UUID(), question: "How do you create a custom view modifier?", correctAnswer: "Create a struct conforming to ViewModifier protocol", timesIncorrect: 2),
+            MistakeSnapshot(id: UUID(), question: "What is the purpose of @Environment?", correctAnswer: "Access values from the environment", timesIncorrect: 2),
+            MistakeSnapshot(id: UUID(), question: "How does SwiftData persistence work?", correctAnswer: "Uses ModelContext to save and fetch objects", timesIncorrect: 1),
+            MistakeSnapshot(id: UUID(), question: "What is a GeometryReader used for?", correctAnswer: "Reading size and position of views", timesIncorrect: 1)
+        ],
+        mistakeRotationIndex: 0
     )
 }

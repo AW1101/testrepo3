@@ -6,6 +6,8 @@
 //
 
 // I need to go over the topic generation for the next-day questions creation again, need to test it further to see if it is actually going out of its way to make it different from the last (questions themselves seem to be fine/new though)
+
+import WidgetKit
 import Foundation
 import SwiftUI
 import SwiftData
@@ -311,6 +313,10 @@ struct HomeView: View {
         
         do {
             try modelContext.save()
+            
+            // FORCE WIDGET REFRESH
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after daily generation")
             
             generationProgress = 1.0
             generationStatus = "Ready!"

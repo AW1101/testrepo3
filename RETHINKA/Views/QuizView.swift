@@ -5,6 +5,7 @@
 //  Created by Aston Walsh on 11/10/2025.
 //
 
+import WidgetKit
 import SwiftUI
 import SwiftData
 
@@ -229,6 +230,11 @@ struct QuizView: View {
         
         do {
             try modelContext.save()
+            
+            // forece widget refresh
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after quiz completion")
+            
             showingResults = true
         } catch {
             print("Error saving quiz: \(error)")

@@ -5,6 +5,7 @@
 //  Created by Aston Walsh on 12/10/2025.
 //
 
+import WidgetKit
 import SwiftUI
 import SwiftData
 
@@ -143,6 +144,11 @@ struct QuizReviewView: View {
         
         do {
             try modelContext.save()
+            
+            // force widget refresh
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after quiz retake")
+            
             dismiss()
         } catch {
             print("Error resetting quiz: \(error)")
