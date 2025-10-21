@@ -6,13 +6,16 @@
 //
 
 import SwiftUI
+import UserNotifications
 
-// Still pretty much all placeholder stuff that I made at the start, will need to be revisited/linked with the rest of it later
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("notificationTime") private var notificationTime = 9
     @AppStorage("difficultyLevel") private var difficultyLevel = "Medium"
+    
+    @State private var showingPermissionAlert = false
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     
     var body: some View {
         NavigationStack {
@@ -51,9 +54,56 @@ struct SettingsView: View {
                                 SettingsToggleRow(
                                     icon: "bell.fill",
                                     title: "Daily Reminders",
-                                    subtitle: "Get notified about daily quizzes",
-                                    isOn: $notificationsEnabled
+                                    subtitle: "Get notified about incomplete quizzes",
+                                    isOn: Binding(
+                                        get: { notificationsEnabled && notificationStatus == .authorized },
+                                        set: { newValue in
+                                            if newValue {
+                                                if notificationStatus != .authorized {
+                                                    showingPermissionAlert = true
+                                                } else {
+                                                    notificationsEnabled = true
+                                                    NotificationManager.shared.scheduleDailyReminders(at: notificationTime)
+                                                }
+                                            } else {
+                                                notificationsEnabled = false
+                                                NotificationManager.shared.cancelAllReminders()
+                                            }
+                                        }
+                                    )
                                 )
+                                
+                                if notificationStatus == .denied {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundColor(.orange)
+                                            Text("Notifications Disabled")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.orange)
+                                        }
+                                        
+                                        Text("Please enable notifications in Settings app")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Button(action: {
+                                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                                UIApplication.shared.open(url)
+                                            }
+                                        }) {
+                                            Text("Open Settings")
+                                                .font(.caption)
+                                                .foregroundColor(Theme.primary)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(10)
+                                    .padding(.horizontal)
+                                    .padding(.bottom, 10)
+                                }
                                 
                                 Divider()
                                     .padding(.leading, 60)
@@ -62,12 +112,25 @@ struct SettingsView: View {
                                     icon: "clock.fill",
                                     title: "Notification Time",
                                     subtitle: "Choose when to receive reminders",
-                                    selection: $notificationTime,
+                                    selection: Binding(
+                                        get: { notificationTime },
+                                        set: { newValue in
+                                            notificationTime = newValue
+                                            if notificationsEnabled && notificationStatus == .authorized {
+                                                NotificationManager.shared.scheduleDailyReminders(at: newValue)
+                                            }
+                                        }
+                                    ),
                                     options: Array(6...22),
-                                    formatOption: { "\($0):00" }
+                                    formatOption: { hour in
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "h:00 a"
+                                        let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!
+                                        return formatter.string(from: date)
+                                    }
                                 )
-                                .disabled(!notificationsEnabled)
-                                .opacity(notificationsEnabled ? 1.0 : 0.5)
+                                .disabled(!notificationsEnabled || notificationStatus != .authorized)
+                                .opacity((notificationsEnabled && notificationStatus == .authorized) ? 1.0 : 0.5)
                             }
                             .cardStyle()
                         }
@@ -82,30 +145,103 @@ struct SettingsView: View {
                             VStack(spacing: 0) {
                                 SettingsPickerRow(
                                     icon: "gauge.medium",
-                                    title: "Default Difficulty",
-                                    subtitle: "Set quiz difficulty level",
+                                    title: "Difficulty",
+                                    subtitle: "Set generated quiz difficulty",
                                     selection: $difficultyLevel,
                                     options: ["Easy", "Medium", "Hard"],
                                     formatOption: { $0 }
                                 )
+                                
+                                // Difficulty explanation
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Image(systemName: "info.circle.fill")
+                                            .foregroundColor(Theme.secondary)
+                                        Text("Difficulty Levels")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(Theme.secondary)
+                                    }
+                                    
+                                    Group {
+                                        Text("Easy: ") +
+                                        Text("Straightforward questions, basic concepts")
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text("Medium: ") +
+                                        Text("Moderate complexity, requires understanding")
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text("Hard: ") +
+                                        Text("Complex questions, application & analysis")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .font(.caption2)
+                                    .foregroundColor(Theme.primary)
+                                }
+                                .padding()
+                                .background(Theme.secondary.opacity(0.1))
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                                .padding(.top, 10)
                             }
                             .cardStyle()
                         }
                         .padding(.horizontal)
+                        
                     }
                 }
-                .navigationTitle("Settings")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") {
-                            dismiss()
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                checkNotificationStatus()
+            }
+            .alert("Enable Notifications", isPresented: $showingPermissionAlert) {
+                Button("Cancel", role: .cancel) {
+                    notificationsEnabled = false
+                }
+                Button("Enable") {
+                    NotificationManager.shared.requestAuthorization { granted in
+                        DispatchQueue.main.async {
+                            if granted {
+                                notificationsEnabled = true
+                                notificationStatus = .authorized
+                                NotificationManager.shared.scheduleDailyReminders(at: notificationTime)
+                            } else {
+                                notificationsEnabled = false
+                                notificationStatus = .denied
+                            }
                         }
                     }
+                }
+            } message: {
+                Text("RETHINKA needs permission to send you daily reminders about incomplete quizzes.")
+            }
+        }
+    }
+    
+    private func checkNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                notificationStatus = settings.authorizationStatus
+                
+                // If notifications are enabled but permission denied, disable them
+                if notificationsEnabled && settings.authorizationStatus != .authorized {
+                    notificationsEnabled = false
                 }
             }
         }
     }
+    
+    // MARK: - Supporting Views
     
     struct SettingsToggleRow: View {
         let icon: String
@@ -183,41 +319,32 @@ struct SettingsView: View {
         }
     }
     
-    struct SettingsNavigationRow: View {
+    struct SettingsInfoRow: View {
         let icon: String
         let title: String
-        let subtitle: String
-        let action: () -> Void
+        let value: String
         
         var body: some View {
-            Button(action: action) {
-                HStack(spacing: 15) {
-                    Circle()
-                        .fill(Theme.primary.opacity(0.2))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Image(systemName: icon)
-                                .foregroundColor(Theme.primary)
-                        )
-                    
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding()
+            HStack(spacing: 15) {
+                Circle()
+                    .fill(Theme.primary.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: icon)
+                            .foregroundColor(Theme.primary)
+                    )
+                
+                Text(title)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Text(value)
+                    .font(.body)
+                    .foregroundColor(.secondary)
             }
+            .padding()
         }
     }
 }

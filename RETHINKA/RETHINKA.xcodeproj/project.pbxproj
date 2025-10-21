@@ -53,6 +53,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AIQuestionGenerator.swift,
+				AppDelegate.swift,
 				NotificationsManager.swift,
 				Theme.swift,
 			);

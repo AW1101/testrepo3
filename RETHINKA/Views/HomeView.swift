@@ -149,8 +149,14 @@ struct HomeView: View {
             }
             .onAppear {
                 NotificationManager.shared.requestAuthorization()
+                setupNotifications()
+                updateNotificationBadge()
                 checkAndGenerateDailyQuizzes()
             }
+            .onChange(of: activeTimelines.count) { _, _ in
+                updateNotificationBadge()
+            }
+            
         }
     }
     
@@ -330,6 +336,48 @@ struct HomeView: View {
         }
     }
 }
+
+
+extension HomeView {
+    private func updateNotificationBadge() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Count incomplete quizzes for today across all active timelines
+        var incompleteCount = 0
+        
+        for timeline in activeTimelines {
+            let todayQuizzes = timeline.dailyQuizzes.filter { quiz in
+                calendar.isDate(quiz.date, inSameDayAs: today) && !quiz.isCompleted
+            }
+            incompleteCount += todayQuizzes.count
+        }
+        
+        // Update badge count
+        NotificationManager.shared.updateBadgeCount(incompleteQuizCount: incompleteCount)
+    }
+    
+    private func setupNotifications() {
+        // Check if notifications are enabled in settings
+        let notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
+        let notificationTime = UserDefaults.standard.integer(forKey: "notificationTime")
+        
+        if notificationsEnabled {
+            // Request authorization if needed
+            NotificationManager.shared.requestAuthorization { granted in
+                if granted {
+                    // Schedule daily reminders
+                    NotificationManager.shared.scheduleDailyReminders(at: notificationTime > 0 ? notificationTime : 9)
+                }
+            }
+        }
+        
+        // Update badge regardless
+        updateNotificationBadge()
+    }
+}
+
+
 
 struct DailyQuizGenerationOverlay: View {
     let progress: Double
