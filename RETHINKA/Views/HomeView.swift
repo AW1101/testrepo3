@@ -405,6 +405,7 @@ struct ActiveTimelineCard: View {
                 Text(timeline.examName)
                     .font(.headline)
                     .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
                 
                 Text("\(completedQuizzes)/\(totalQuizzes) quizzes completed")
                     .font(.caption)
