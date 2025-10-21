@@ -113,11 +113,12 @@ struct Provider: TimelineProvider {
 
         if !baseData.topMistakes.isEmpty {
             let now = Date()
-            let count = baseData.topMistakes.count
+            // number of distinct start indices we should rotate through:
+            let rotationCount = max(1, baseData.topMistakes.count)
 
-            for i in 0..<count {
+            for i in 0..<rotationCount {
                 let entryDate = now.addingTimeInterval(Double(i) * rotationInterval)
-                // We pass the full mistakes list but with the rotationIndex set to i
+                // We pass the full mistakes list but set the rotationIndex (will be modulo-ed in the views)
                 entries.append(QuizEntry(
                     date: entryDate,
                     primaryTimeline: baseData.primaryTimeline,
@@ -128,7 +129,7 @@ struct Provider: TimelineProvider {
             }
 
             // Schedule next full refresh after one full rotation so data is refreshed
-            let nextRefresh = now.addingTimeInterval(Double(max(1, count)) * rotationInterval)
+            let nextRefresh = now.addingTimeInterval(Double(rotationCount) * rotationInterval)
             let timeline = Timeline(entries: entries, policy: .after(nextRefresh))
             completion(timeline)
         } else {
@@ -139,6 +140,7 @@ struct Provider: TimelineProvider {
             completion(timeline)
         }
     }
+
     
     private func fetchCurrentEntry(rotationIndex: Int) -> QuizEntry {
         let context = ModelContext(modelContainer)
@@ -366,9 +368,7 @@ struct MediumWidgetView: View {
                         Spacer()
                         
                         if entry.topMistakes.count > 1 {
-                            Text("\(entry.mistakeRotationIndex + 1)/\(entry.topMistakes.count)")
-                                .font(.system(size: 9))
-                                .foregroundColor(.white.opacity(0.6))
+                            let idx = (entry.mistakeRotationIndex % entry.topMistakes.count) + 1
                         }
                     }
                     
@@ -433,15 +433,19 @@ struct LargeWidgetView: View {
     
     private var displayMistakes: [MistakeSnapshot] {
         guard !entry.topMistakes.isEmpty else { return [] }
-        
-        let startIndex = entry.mistakeRotationIndex
+
+        let count = entry.topMistakes.count
+        // Always reduce startIndex into 0..<count (defensive)
+        let startIndex = entry.mistakeRotationIndex % count
         var mistakes: [MistakeSnapshot] = []
-        
-        for i in 0..<min(5, entry.topMistakes.count) {
-            let index = (startIndex + i) % entry.topMistakes.count
+
+        // collect up to 5 mistakes starting from startIndex, wrapping using modulo
+        let toDisplay = min(5, count)
+        for i in 0..<toDisplay {
+            let index = (startIndex + i) % count
             mistakes.append(entry.topMistakes[index])
         }
-        
+
         return mistakes
     }
     
@@ -547,9 +551,6 @@ struct LargeWidgetView: View {
                             let count = entry.topMistakes.count
                             let start = entry.mistakeRotationIndex % count
                             let rangeText = rotatingIndicesText(total: count, startIndex: start, maxDisplay: 5)
-                            Text("\(rangeText)/\(count)")
-                                .font(.system(size: 9))
-                                .foregroundColor(.white.opacity(0.6))
                         }
 
                     }
