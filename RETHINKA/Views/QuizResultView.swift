@@ -55,7 +55,7 @@ struct QuizResultView: View {
                     VStack(spacing: 20) {
                         ZStack {
                             Circle()
-                                .stroke(scoreColor.opacity(0.2), lineWidth: 15)
+                                .stroke(scoreColor.opacity(0.3), lineWidth: 15)
                                 .frame(width: 200, height: 200)
 
                             Circle()
@@ -72,7 +72,7 @@ struct QuizResultView: View {
 
                                 Text(scoreMessage)
                                     .font(.headline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.9))
                             }
                         }
                         .padding(.top, 30)
@@ -80,11 +80,11 @@ struct QuizResultView: View {
                         Text("Day \(quiz.dayNumber) Quiz Complete")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Theme.primary)
+                            .foregroundColor(.white)
 
                         Text(quiz.topic)
                             .font(.subheadline)
-                            .foregroundColor(Theme.secondary)
+                            .foregroundColor(.white.opacity(0.8))
                     }
 
                     // Stats Cards
@@ -107,7 +107,7 @@ struct QuizResultView: View {
                             icon: "list.bullet",
                             value: "\(quiz.questions.count)",
                             label: "Total",
-                            color: Theme.secondary
+                            color: .white
                         )
                     }
                     .padding(.horizontal)
@@ -116,13 +116,12 @@ struct QuizResultView: View {
                     VStack(alignment: .leading, spacing: 15) {
                         Text("Review Answers")
                             .font(.headline)
-                            .foregroundColor(Theme.primary)
+                            .foregroundColor(.white)
                             .padding(.horizontal)
 
                         // Iterate by index to ensure every question is shown and numbered 1..N
-                        ForEach(quiz.questions.indices, id: \.self) { i in
-                            let question = quiz.questions[i]
-                            ResultQuestionCard(question: question, questionNumber: i + 1)
+                        ForEach(Array(quiz.questions.enumerated()), id: \.element.id) { index, question in
+                            ResultQuestionCard(question: question, questionNumber: index + 1)
                                 .padding(.horizontal)
                         }
                     }
@@ -139,7 +138,7 @@ struct QuizResultView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 30)
                 }
-                .padding(.bottom, 40) // ensure final item isn't clipped by safe area
+                .padding(.bottom, 40)
             }
         }
     }
@@ -161,21 +160,21 @@ struct StatCard: View {
             Text(value)
                 .font(.headline)
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
             Text(label)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white.opacity(0.8))
         }
         .frame(maxWidth: .infinity)
         .padding(12)
-        .background(color.opacity(0.08))
+        .background(color.opacity(0.2))
         .cornerRadius(15)
         .overlay(
             RoundedRectangle(cornerRadius: 15)
-                .stroke(color.opacity(0.18), lineWidth: 1)
+                .stroke(color.opacity(0.3), lineWidth: 1)
         )
     }
 }
@@ -194,7 +193,7 @@ struct ResultQuestionCard: View {
     }
 
     private var headerColor: Color {
-        isCorrect ? Color.green.opacity(0.08) : Color.red.opacity(0.08)
+        isCorrect ? Color.green.opacity(0.2) : Color.red.opacity(0.2)
     }
 
     var body: some View {
@@ -214,12 +213,12 @@ struct ResultQuestionCard: View {
                     Text(question.question)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(question.type == "textField" ? "Written Answer" : "Multiple Choice")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                 }
 
                 Spacer()
@@ -246,10 +245,10 @@ struct ResultQuestionCard: View {
 
                     Text(question.userAnswer ?? "No answer provided")
                         .font(.subheadline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(Theme.primary)
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.blue.opacity(0.06))
+                        .background(.white)
                         .cornerRadius(10)
 
                     HStack {
@@ -263,10 +262,10 @@ struct ResultQuestionCard: View {
 
                     Text(question.correctAnswer)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.9))
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.06))
+                        .background(Color.orange.opacity(0.2))
                         .cornerRadius(10)
                 }
             } else {
@@ -298,7 +297,7 @@ struct ResultQuestionCard: View {
                     if let selectedIndex = question.selectedAnswerIndex {
                         Text("You selected: \(question.options[selectedIndex])")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.8))
                     }
 
                     Text("Correct answer: \(question.correctAnswer)")
@@ -307,16 +306,16 @@ struct ResultQuestionCard: View {
                         .foregroundColor(.green)
                 }
                 .padding()
-                .background(Color.orange.opacity(0.06))
+                .background(Color.orange.opacity(0.2))
                 .cornerRadius(10)
             }
         }
         .padding()
-        .background(Theme.cardBackground)
+        .background(Color.white.opacity(0.15))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(borderColor.opacity(0.25), lineWidth: 1.5)
+                .stroke(borderColor.opacity(0.4), lineWidth: 1.5)
         )
     }
 }

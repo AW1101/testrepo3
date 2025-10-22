@@ -44,7 +44,6 @@ struct QuizView: View {
                 Theme.background.ignoresSafeArea()
                 
                 if quiz.questions.isEmpty {
-                    // Should never happen with new flow, but keep as safety
                     EmptyQuizView()
                 } else if showingResults {
                     QuizResultView(quiz: quiz, onClose: {
@@ -67,7 +66,7 @@ struct QuizView: View {
                                         HStack {
                                             Text("Question \(currentQuestionIndex + 1)")
                                                 .font(.caption)
-                                                .foregroundColor(.secondary)
+                                                .foregroundColor(.white.opacity(0.8))
                                             
                                             Spacer()
                                             
@@ -75,15 +74,15 @@ struct QuizView: View {
                                                 .font(.caption2)
                                                 .padding(.horizontal, 10)
                                                 .padding(.vertical, 5)
-                                                .background(Theme.secondary.opacity(0.2))
+                                                .background(Color.white.opacity(0.2))
                                                 .cornerRadius(10)
-                                                .foregroundColor(Theme.secondary)
+                                                .foregroundColor(.white)
                                         }
                                         
                                         Text(question.question)
                                             .font(.title3)
                                             .fontWeight(.semibold)
-                                            .foregroundColor(.primary)
+                                            .foregroundColor(.white)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding()
@@ -95,16 +94,16 @@ struct QuizView: View {
                                             VStack(alignment: .leading, spacing: 10) {
                                                 Text("Your Answer:")
                                                     .font(.subheadline)
-                                                    .foregroundColor(.secondary)
+                                                    .foregroundColor(.white.opacity(0.8))
                                                 
                                                 TextEditor(text: $textFieldAnswer)
                                                     .frame(minHeight: 120)
                                                     .padding(8)
-                                                    .background(Theme.cardBackground)
+                                                    .background(.white)
                                                     .cornerRadius(12)
                                                     .overlay(
                                                         RoundedRectangle(cornerRadius: 12)
-                                                            .stroke(Theme.secondary.opacity(0.3), lineWidth: 1)
+                                                            .stroke(Color.clear, lineWidth: 0)
                                                     )
                                                     .disabled(hasAnswered)
                                                 
@@ -121,9 +120,9 @@ struct QuizView: View {
                                                         
                                                         Text(question.options[question.correctAnswerIndex])
                                                             .font(.subheadline)
-                                                            .foregroundColor(.secondary)
+                                                            .foregroundColor(.white.opacity(0.9))
                                                             .padding()
-                                                            .background(Color.orange.opacity(0.1))
+                                                            .background(Color.orange.opacity(0.2))
                                                             .cornerRadius(10)
                                                     }
                                                     .padding(.top, 10)
@@ -179,11 +178,13 @@ struct QuizView: View {
             }
             .navigationTitle("Day \(quiz.dayNumber) Quiz")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
         }
@@ -231,7 +232,7 @@ struct QuizView: View {
         do {
             try modelContext.save()
             
-            // forece widget refresh
+            // force widget refresh
             WidgetCenter.shared.reloadAllTimelines()
             print("Widget refreshed after quiz completion")
             
@@ -252,10 +253,11 @@ struct EmptyQuizView: View {
             Text("No Questions Available")
                 .font(.title2)
                 .fontWeight(.bold)
+                .foregroundColor(.white)
             
             Text("This quiz has no questions. Please contact support.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
         }
         .padding()
@@ -276,16 +278,16 @@ struct QuizProgressHeader: View {
             HStack {
                 Text("Question \(currentQuestion) of \(totalQuestions)")
                     .font(.headline)
-                    .foregroundColor(Theme.primary)
+                    .foregroundColor(.white)
                 
                 Spacer()
             }
             
             ProgressView(value: progress)
-                .tint(Theme.secondary)
+                .tint(.white)
         }
         .padding()
-        .background(Theme.cardBackground)
+        .background(Color.white.opacity(0.15))
     }
 }
 
@@ -299,14 +301,14 @@ struct AnswerOption: View {
     private var backgroundColor: Color {
         if let isCorrect = isCorrect {
             if isCorrect {
-                return Color.green.opacity(0.2)
+                return Color.green.opacity(0.3)
             } else if isSelected {
-                return Color.red.opacity(0.2)
+                return Color.red.opacity(0.3)
             }
         } else if isSelected {
-            return Theme.primary.opacity(0.1)
+            return Color.white.opacity(0.2)
         }
-        return Theme.cardBackground
+        return Color.white.opacity(0.1)
     }
     
     private var borderColor: Color {
@@ -317,9 +319,9 @@ struct AnswerOption: View {
                 return .red
             }
         } else if isSelected {
-            return Theme.primary
+            return .white
         }
-        return Theme.secondary.opacity(0.3)
+        return Color.white.opacity(0.3)
     }
     
     private var icon: String? {
@@ -333,24 +335,24 @@ struct AnswerOption: View {
         if let isCorrect = isCorrect {
             return isCorrect ? .green : .red
         }
-        return Theme.primary
+        return .white
     }
     
     var body: some View {
         Button(action: onSelect) {
             HStack {
                 Circle()
-                    .fill(isSelected ? Theme.primary : Theme.secondary.opacity(0.3))
+                    .fill(isSelected ? .white : Color.white.opacity(0.3))
                     .frame(width: 30, height: 30)
                     .overlay(
                         Text("\(["A", "B", "C", "D"][index])")
                             .font(.headline)
-                            .foregroundColor(isSelected ? .white : .secondary)
+                            .foregroundColor(isSelected ? Theme.primary : .white.opacity(0.8))
                     )
                 
                 Text(option)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
                 
                 Spacer()

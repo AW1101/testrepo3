@@ -393,7 +393,7 @@ struct ReviewAnswerOption: View {
             
             Text(option)
                 .font(.subheadline)
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
                 .multilineTextAlignment(.leading)
             
             Spacer()

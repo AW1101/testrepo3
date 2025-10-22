@@ -9,7 +9,6 @@ import Foundation
 import SwiftUI
 import SwiftData
 
-// basically works but there's a few minor things needed to be addressed at some point (archiving interacting with next-day stuff, percentages appearing incorrectly etc.)
 struct ManageTimelinesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -36,20 +35,20 @@ struct ManageTimelinesView: View {
                         // Header
                         VStack(spacing: 10) {
                             Circle()
-                                .fill(Theme.primary)
+                                .fill(.white)
                                 .frame(width: 80, height: 80)
                                 .overlay(
                                     Image(systemName: "list.bullet.clipboard")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 40, height: 40)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Theme.primary)
                                 )
                             
                             Text("Manage Timelines")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundColor(Theme.primary)
+                                .foregroundColor(.white)
                         }
                         .padding(.top)
                         
@@ -58,7 +57,7 @@ struct ManageTimelinesView: View {
                             VStack(alignment: .leading, spacing: 15) {
                                 Text("Active Timelines (\(activeTimelines.count))")
                                     .font(.headline)
-                                    .foregroundColor(Theme.primary)
+                                    .foregroundColor(.white)
                                 
                                 ForEach(activeTimelines) { timeline in
                                     TimelineManagementCard(
@@ -78,11 +77,11 @@ struct ManageTimelinesView: View {
                             VStack(spacing: 15) {
                                 Image(systemName: "tray")
                                     .font(.system(size: 50))
-                                    .foregroundColor(Theme.secondary.opacity(0.5))
+                                    .foregroundColor(.white.opacity(0.6))
                                 
                                 Text("No active timelines")
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.8))
                             }
                             .padding()
                         }
@@ -92,7 +91,7 @@ struct ManageTimelinesView: View {
                             VStack(alignment: .leading, spacing: 15) {
                                 Text("Archived Timelines (\(completedTimelines.count))")
                                     .font(.headline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.8))
                                 
                                 ForEach(completedTimelines) { timeline in
                                     ArchivedTimelineCard(
@@ -116,11 +115,13 @@ struct ManageTimelinesView: View {
             }
             .navigationTitle("Manage")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
             .alert("Delete Timeline", isPresented: $showingDeleteConfirmation, presenting: timelineToDelete) { timeline in
@@ -196,43 +197,43 @@ struct TimelineManagementCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(timeline.examName)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     Text("Exam: \(timeline.examDate, style: .date)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.8))
                     
                     if daysUntilExam >= 0 {
                         Text("\(daysUntilExam) days remaining")
                             .font(.caption)
-                            .foregroundColor(daysUntilExam < 7 ? .orange : Theme.secondary)
+                            .foregroundColor(daysUntilExam < 7 ? .orange : .white)
                     } else {
                         Text("Exam passed")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.8))
                     }
                 }
                 
                 Spacer()
                 
                 Circle()
-                    .fill(Theme.primary)
+                    .fill(.white)
                     .frame(width: 50, height: 50)
                     .overlay(
                         VStack(spacing: 2) {
                             Text("\(Int(progress * 100))%")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(Theme.primary)
                         }
                     )
             }
             
             ProgressView(value: progress)
-                .tint(Theme.secondary)
+                .tint(.white)
             
             Text("\(completedQuizzes) of \(totalQuizzes) quizzes completed")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white.opacity(0.8))
             
             HStack(spacing: 10) {
                 Button(action: onArchive) {
@@ -241,10 +242,10 @@ struct TimelineManagementCard: View {
                         Text("Archive")
                     }
                     .font(.caption)
-                    .foregroundColor(.white)
+                    .foregroundColor(Theme.primary)
                     .padding(.horizontal, 15)
                     .padding(.vertical, 8)
-                    .background(Theme.secondary)
+                    .background(.white)
                     .cornerRadius(15)
                 }
                 
@@ -279,22 +280,22 @@ struct ArchivedTimelineCard: View {
                     HStack {
                         Text(timeline.examName)
                             .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.9))
                         
                         Image(systemName: "archivebox.fill")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                     
                     Text("Exam: \(timeline.examDate, style: .date)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.7))
                     
                     if let lastQuiz = timeline.dailyQuizzes.last(where: { $0.isCompleted }) {
                         if let score = lastQuiz.score {
                             Text("Final score: \(Int(score * 100))%")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.7))
                         }
                     }
                 }
@@ -309,10 +310,10 @@ struct ArchivedTimelineCard: View {
                         Text("Restore")
                     }
                     .font(.caption)
-                    .foregroundColor(.white)
+                    .foregroundColor(Theme.primary)
                     .padding(.horizontal, 15)
                     .padding(.vertical, 8)
-                    .background(Theme.primary)
+                    .background(.white)
                     .cornerRadius(15)
                 }
                 
@@ -331,11 +332,11 @@ struct ArchivedTimelineCard: View {
             }
         }
         .padding()
-        .background(Theme.cardBackground.opacity(0.5))
+        .background(Color.white.opacity(0.08))
         .cornerRadius(20)
         .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
     }
 }

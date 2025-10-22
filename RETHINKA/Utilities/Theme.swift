@@ -9,16 +9,16 @@ import Foundation
 import SwiftUI
 
 struct Theme {
-    // Colours
+    // Colours - Updated for dark cyan background
     static let primary = Color(hex: "0b6374")
     static let secondary = Color(hex: "599191")
-    static let background = Color(.systemBackground)
-    static let cardBackground = Color(.secondarySystemBackground)
+    static let background = Color(hex: "0b6374") // Changed from systemBackground
+    static let cardBackground = Color.white.opacity(0.1) // Semi-transparent white for cards
     
     // Circular Button Style
     struct CircularButton: ButtonStyle {
-        var backgroundColor: Color = Theme.primary
-        var foregroundColor: Color = .white
+        var backgroundColor: Color = .white
+        var foregroundColor: Color = Theme.primary
         var size: CGFloat = 60
         
         func makeBody(configuration: Configuration) -> some View {
@@ -32,18 +32,18 @@ struct Theme {
         }
     }
     
-    // Card Style
+    // Card Style - Updated for better contrast
     struct CardModifier: ViewModifier {
         func body(content: Content) -> some View {
             content
                 .padding()
-                .background(Theme.cardBackground)
+                .background(Color.white.opacity(0.15))
                 .cornerRadius(20)
-                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
         }
     }
     
-    // Primary Button Style
+    // Primary Button Style - Updated for white background
     struct PrimaryButton: ButtonStyle {
         var isDisabled: Bool = false
         
@@ -51,8 +51,8 @@ struct Theme {
             configuration.label
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isDisabled ? Color.gray : Theme.primary)
-                .foregroundColor(.white)
+                .background(isDisabled ? Color.gray : .white)
+                .foregroundColor(isDisabled ? .white : Theme.primary)
                 .cornerRadius(25)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
                 .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
@@ -60,7 +60,7 @@ struct Theme {
     }
 }
 
-// Color Extension I had to use for a Hex related, will probably replace all this later with something else
+// Color Extension
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

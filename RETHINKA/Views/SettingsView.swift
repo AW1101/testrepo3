@@ -5,6 +5,7 @@
 //  Created by Aston Walsh on 11/10/2025.
 //
 
+
 import SwiftUI
 import UserNotifications
 
@@ -27,20 +28,20 @@ struct SettingsView: View {
                         // Header
                         VStack(spacing: 10) {
                             Circle()
-                                .fill(Theme.primary)
+                                .fill(.white)
                                 .frame(width: 80, height: 80)
                                 .overlay(
                                     Image(systemName: "gearshape.fill")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 40, height: 40)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Theme.primary)
                                 )
                             
                             Text("Settings")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundColor(Theme.primary)
+                                .foregroundColor(.white)
                         }
                         .padding(.top)
                         
@@ -48,7 +49,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 15) {
                             Text("Notifications")
                                 .font(.headline)
-                                .foregroundColor(Theme.primary)
+                                .foregroundColor(.white)
                             
                             VStack(spacing: 0) {
                                 SettingsToggleRow(
@@ -86,7 +87,7 @@ struct SettingsView: View {
                                         
                                         Text("Please enable notifications in Settings app")
                                             .font(.caption2)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.white.opacity(0.8))
                                         
                                         Button(action: {
                                             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -95,17 +96,18 @@ struct SettingsView: View {
                                         }) {
                                             Text("Open Settings")
                                                 .font(.caption)
-                                                .foregroundColor(Theme.primary)
+                                                .foregroundColor(.white)
                                         }
                                     }
                                     .padding()
-                                    .background(Color.orange.opacity(0.1))
+                                    .background(Color.orange.opacity(0.25))
                                     .cornerRadius(10)
                                     .padding(.horizontal)
                                     .padding(.bottom, 10)
                                 }
                                 
                                 Divider()
+                                    .background(.white.opacity(0.3))
                                     .padding(.leading, 60)
                                 
                                 SettingsPickerRow(
@@ -140,7 +142,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 15) {
                             Text("Quiz Settings")
                                 .font(.headline)
-                                .foregroundColor(Theme.primary)
+                                .foregroundColor(.white)
                             
                             VStack(spacing: 0) {
                                 SettingsPickerRow(
@@ -156,31 +158,36 @@ struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         Image(systemName: "info.circle.fill")
-                                            .foregroundColor(Theme.secondary)
+                                            .foregroundColor(.white)
                                         Text("Difficulty Levels")
                                             .font(.caption)
                                             .fontWeight(.semibold)
-                                            .foregroundColor(Theme.secondary)
+                                            .foregroundColor(.white)
                                     }
                                     
                                     Group {
-                                        Text("Easy: ") +
+                                        Text("Easy: ")
+                                            .foregroundColor(.white)
+                                            .fontWeight(.semibold) +
                                         Text("Straightforward questions, basic concepts")
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.white.opacity(0.8))
                                         
-                                        Text("Medium: ") +
+                                        Text("Medium: ")
+                                            .foregroundColor(.white)
+                                            .fontWeight(.semibold) +
                                         Text("Moderate complexity, requires understanding")
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.white.opacity(0.8))
                                         
-                                        Text("Hard: ") +
+                                        Text("Hard: ")
+                                            .foregroundColor(.white)
+                                            .fontWeight(.semibold) +
                                         Text("Complex questions, application & analysis")
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.white.opacity(0.8))
                                     }
                                     .font(.caption2)
-                                    .foregroundColor(Theme.primary)
                                 }
                                 .padding()
-                                .background(Theme.secondary.opacity(0.1))
+                                .background(Color.white.opacity(0.15))
                                 .cornerRadius(10)
                                 .padding(.horizontal)
                                 .padding(.top, 10)
@@ -194,11 +201,13 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
             .onAppear {
@@ -252,21 +261,21 @@ struct SettingsView: View {
         var body: some View {
             HStack(spacing: 15) {
                 Circle()
-                    .fill(Theme.primary.opacity(0.2))
+                    .fill(Color.white.opacity(0.3))
                     .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: icon)
-                            .foregroundColor(Theme.primary)
+                            .foregroundColor(.white)
                     )
                 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.body)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.8))
                 }
                 
                 Spacer()
@@ -289,21 +298,21 @@ struct SettingsView: View {
         var body: some View {
             HStack(spacing: 15) {
                 Circle()
-                    .fill(Theme.secondary.opacity(0.2))
+                    .fill(Color.white.opacity(0.3))
                     .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: icon)
-                            .foregroundColor(Theme.secondary)
+                            .foregroundColor(.white)
                     )
                 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.body)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.8))
                 }
                 
                 Spacer()
@@ -314,6 +323,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .tint(.white)
             }
             .padding()
         }
@@ -327,22 +337,22 @@ struct SettingsView: View {
         var body: some View {
             HStack(spacing: 15) {
                 Circle()
-                    .fill(Theme.primary.opacity(0.2))
+                    .fill(Color.white.opacity(0.3))
                     .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: icon)
-                            .foregroundColor(Theme.primary)
+                            .foregroundColor(.white)
                     )
                 
                 Text(title)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                 
                 Spacer()
                 
                 Text(value)
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.8))
             }
             .padding()
         }
