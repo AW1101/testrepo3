@@ -20,18 +20,61 @@ struct TimelineMistakesView: View {
             Theme.background.ignoresSafeArea()
             ScrollView {
                 if mistakes.isEmpty {
-                    VStack {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Image(systemName: "checkmark.seal.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 60, height: 60)
+                                    .foregroundColor(Theme.primary)
+                            )
+                        
                         Text("No mistakes in '\(title)'!")
                             .font(.title2)
-                            .foregroundColor(Theme.primary)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
                         
                         Text("Great job, you got this!")
                             .font(.headline)
-                            .foregroundColor(Theme.secondary)
+                            .foregroundColor(.white.opacity(0.8))
+                        
+                        Spacer()
                     }
+                    .padding()
                 }
                 else {
                     VStack(spacing: 25) {
+                        // Header
+                        VStack(spacing: 10) {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(.orange)
+                                )
+                            
+                            Text("Review Your Mistakes")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            
+                            Text("\(mistakes.count) \(mistakes.count == 1 ? "question" : "questions") to review")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .padding(.top)
+                        .padding(.horizontal)
+                        
+                        // Mistakes List
                         ForEach(Array(mistakes.enumerated()), id: \.element.id) { index, question in
                             if !question.isAnsweredCorrectly {
                                 QuestionReviewCard(question: question, questionNumber: index + 1)
@@ -39,6 +82,7 @@ struct TimelineMistakesView: View {
                             }
                         }
                     }
+                    .padding(.bottom, 30)
                 }
             }
         }
