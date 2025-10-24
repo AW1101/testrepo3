@@ -3,10 +3,7 @@
 //  RETHINKA
 //
 //  Created by Aston Walsh on 12/10/2025.
-//
-
-// Works somewhat well, i've previously had issues with it generating the wrong number of questions/answers but i think that's fixed, there's still a lot left to rework (text field questions are particularly vague, other questions can be a bit simplistic ((not that bad really, to be expected sometimes)), difficulty stuff isnt implemented in any way yet etc.)
-
+//  Modified by YUDONG LU on 20/10/2025
 
 import Foundation
 
@@ -91,7 +88,7 @@ final class AIQuestionGenerator {
         CRITICAL RULES:
         - EVERY question must have EXACTLY 4 options in the options array
         - For multipleChoice: all 4 options must be distinct answers
-        - For textField: options[0] = the ONE correct answer (highly specific, absolutely no room for interpretation), options[1-3] = "" (empty strings)
+        - For textField: options[0] = the ONE correct answer (highly specific one or two word answers, should have absolutely no room for interpretation), options[1-3] = "" (empty strings)
         - correctAnswerIndex is ALWAYS 0 for textField questions
         - Mix 70% multipleChoice and 30% textField
         - ALL questions must match the specified difficulty level
@@ -266,7 +263,7 @@ final class AIQuestionGenerator {
         return nil
     }
     
-    // Fallback generator with difficulty support
+    // Fallback generator (placeholder questions in the event that ai questions are not able to be generated)
     private func localFallbackTopics(count: Int, questionsPerTopic: Int) -> [String: [GeneratedQuestion]] {
         let sampleTopics = [
             "Core Concepts",
@@ -320,6 +317,114 @@ final class AIQuestionGenerator {
         
         return dict
     }
+    
+    func generateVariants(for question: QuizQuestion, completion: @escaping (Result<[GeneratedQuestion], Error>) -> Void) {
+        guard let apiKey = apiKey, !apiKey.isEmpty else {
+            print("No API key found for variant generation.")
+            completion(.success([]))
+            return
+        }
+
+        let systemPrompt = """
+        You are a quiz generator that creates alternative versions of a given question. Generate THREE unique variants of the given question, preserving the core concept and knowledge point, but using different phrasing, formats, or question types (e.g., if original is multiple choice, you may try a text field, or a scenario-based MCQ).
+        
+        Each variant must:
+        - Match the original knowledge point
+        - Have 4 options (even if some are empty strings for textField type)
+        - Indicate correctAnswerIndex
+        - Be valid JSON: an array of exactly three GeneratedQuestion objects
+        """
+
+        let userPrompt = """
+        Original Question:
+        Question: \(question.question)
+        Options: \(question.options)
+        CorrectAnswerIndex: \(question.correctAnswerIndex)
+        Type: \(question.type)
+        """
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userPrompt]
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1500
+        ]
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = timeout
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(NSError(domain: "No data", code: -1)))
+                return
+            }
+
+            // 1) Decode Chat Completions envelope
+            struct ChatResponse: Decodable {
+                struct Choice: Decodable {
+                    struct Message: Decodable {
+                        let content: String
+                    }
+                    let message: Message
+                }
+                let choices: [Choice]
+            }
+
+            do {
+                let envelope = try JSONDecoder().decode(ChatResponse.self, from: data)
+                guard let content = envelope.choices.first?.message.content else {
+                    completion(.failure(NSError(domain: "Missing content", code: -2)))
+                    return
+                }
+
+                // 2) Strip code fences if present
+                var cleanedContent = content
+                if cleanedContent.contains("```json") || cleanedContent.contains("```") {
+                    cleanedContent = cleanedContent
+                        .replacingOccurrences(of: "```json", with: "")
+                        .replacingOccurrences(of: "```", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+
+                // 3) Decode the content as an array of GeneratedQuestion
+                guard let variantsData = cleanedContent.data(using: .utf8) else {
+                    completion(.failure(NSError(domain: "Invalid UTF8", code: -3)))
+                    return
+                }
+
+                let variants = try JSONDecoder().decode([GeneratedQuestion].self, from: variantsData)
+                completion(.success(variants))
+            } catch {
+                // Helpful debug print if needed
+                if let rawString = String(data: data, encoding: .utf8) {
+                    print("Variant raw response (first 500): \(rawString.prefix(500))")
+                }
+                completion(.failure(error))
+            }
+        }
+
+        task.resume()
+    }
+    
     
     private func getDifficultyAdjustedTextQuestion(topic: String, number: Int) -> String {
         switch currentDifficulty {

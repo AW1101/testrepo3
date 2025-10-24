@@ -250,8 +250,7 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - Supporting Views
-    
+    // Supporting Views
     struct SettingsToggleRow: View {
         let icon: String
         let title: String

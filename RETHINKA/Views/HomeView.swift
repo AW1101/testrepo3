@@ -5,8 +5,6 @@
 //  Created by Aston Walsh on 11/10/2025.
 //
 
-// I need to go over the topic generation for the next-day questions creation again, need to test it further to see if it is actually going out of its way to make it different from the last (questions themselves seem to be fine/new though)
-
 import WidgetKit
 import Foundation
 import SwiftUI

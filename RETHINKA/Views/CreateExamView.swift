@@ -356,7 +356,7 @@ struct CreateExamView: View {
                                 // If we got fewer than 10, pad with fallback
                                 while timeline.dailyQuizzes[quizIdx].questions.count < 10 {
                                     let paddingQ = QuizQuestion(
-                                        question: "Additional question about \(topic.lowercased()): Explain a key concept.",
+                                        question: "Explain a key concept.",
                                         options: ["Provide a detailed answer", "", "", ""],
                                         correctAnswerIndex: 0,
                                         topic: topic,
@@ -411,7 +411,7 @@ struct CreateExamView: View {
             try modelContext.save()
             NotificationManager.shared.scheduleDailyQuizNotification(for: timeline)
             
-            // CRITICAL: Force widget to refresh immediately
+            // Force widget to refresh immediately
             WidgetCenter.shared.reloadAllTimelines()
             print("App: Forced widget refresh after timeline creation")
             

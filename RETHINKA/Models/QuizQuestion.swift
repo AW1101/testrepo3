@@ -39,7 +39,6 @@ final class QuizQuestion {
         self.type = type
     }
     
-    //Still pretty choppy/vague, will need to rework all of this when i go back of the question generator
     var isAnsweredCorrectly: Bool {
         // For textField questions, validate against expected answer
         if type == "textField" {

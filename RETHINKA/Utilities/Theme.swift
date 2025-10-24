@@ -9,11 +9,11 @@ import Foundation
 import SwiftUI
 
 struct Theme {
-    // Colours - Updated for dark cyan background
+    // Colours
     static let primary = Color(hex: "0b6374")
     static let secondary = Color(hex: "599191")
-    static let background = Color(hex: "0b6374") // Changed from systemBackground
-    static let cardBackground = Color.white.opacity(0.1) // Semi-transparent white for cards
+    static let background = Color(hex: "0b6374")
+    static let cardBackground = Color.white.opacity(0.1)
     
     // Circular Button Style
     struct CircularButton: ButtonStyle {
@@ -32,7 +32,7 @@ struct Theme {
         }
     }
     
-    // Card Style - Updated for better contrast
+    // Card Style
     struct CardModifier: ViewModifier {
         func body(content: Content) -> some View {
             content
@@ -43,7 +43,7 @@ struct Theme {
         }
     }
     
-    // Primary Button Style - Updated for white background
+    // Primary Button Style
     struct PrimaryButton: ButtonStyle {
         var isDisabled: Bool = false
         

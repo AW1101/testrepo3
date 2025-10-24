@@ -179,14 +179,6 @@ struct QuizView: View {
             .navigationTitle("Day \(quiz.dayNumber) Quiz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                }
-            }
         }
     }
     
