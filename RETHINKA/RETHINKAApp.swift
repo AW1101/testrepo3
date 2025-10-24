@@ -88,4 +88,28 @@ struct RETHINKAApp: App {
             NotificationManager.shared.scheduleDailyReminders(at: hour > 0 ? hour : 9)
         }
     }
+    
+    
+    
+    // FOR TESTING
+    /*
+     private func setupInitialNotifications() {
+         // Request permission and trigger immediate test notification
+         NotificationManager.shared.requestAuthorization { granted in
+             print("📱 Notification permission: \(granted ? "GRANTED" : "DENIED")")
+             
+             if granted {
+                 // Trigger the REAL daily reminder notification in 5 seconds
+                 NotificationManager.shared.scheduleImmediateDailyReminder()
+             }
+             
+             // Original setup code
+             UserDefaults.standard.set(granted, forKey: "notificationsEnabled")
+             if granted {
+                 let hour = UserDefaults.standard.integer(forKey: "notificationTime")
+                 NotificationManager.shared.scheduleDailyReminders(at: hour > 0 ? hour : 9)
+             }
+         }
+     }
+     */
 }

@@ -431,7 +431,6 @@ struct CreateExamView: View {
 }
 
 // Supporting Views
-
 struct GenerationLoadingView: View {
     let progress: Double
     let status: String
@@ -442,22 +441,10 @@ struct GenerationLoadingView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 30) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.3), lineWidth: 10)
-                        .frame(width: 120, height: 120)
-                    
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(.white, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                        .frame(width: 120, height: 120)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.5), value: progress)
-                    
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 40))
-                        .foregroundColor(.white)
-                }
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(2.5)
+                    .frame(width: 120, height: 120)
                 
                 VStack(spacing: 10) {
                     Text("Setting Up Your Timeline")
@@ -468,10 +455,6 @@ struct GenerationLoadingView: View {
                     Text(status)
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.8))
-                    
-                    Text("\(Int(progress * 100))%")
-                        .font(.headline)
-                        .foregroundColor(.white)
                 }
             }
             .padding(40)

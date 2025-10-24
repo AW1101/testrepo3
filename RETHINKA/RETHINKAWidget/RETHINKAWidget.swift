@@ -423,24 +423,23 @@ struct MediumWidgetView: View {
     }
 }
 
-// MARK: - Large Widget (5 rotating mistakes)
+// MARK: - Large Widget (4 rotating mistakes, defensive layout)
 struct LargeWidgetView: View {
     let entry: QuizEntry
-    
+
     private var availableQuizCount: Int {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
-    
+
     private var displayMistakes: [MistakeSnapshot] {
         guard !entry.topMistakes.isEmpty else { return [] }
 
         let count = entry.topMistakes.count
-        // Always reduce startIndex into 0..<count (defensive)
         let startIndex = entry.mistakeRotationIndex % count
         var mistakes: [MistakeSnapshot] = []
 
-        // collect up to 5 mistakes starting from startIndex, wrapping using modulo
-        let toDisplay = min(5, count)
+        // Show up to 4 mistakes to guarantee vertical fit in typical widget sizes
+        let toDisplay = min(4, count)
         for i in 0..<toDisplay {
             let index = (startIndex + i) % count
             mistakes.append(entry.topMistakes[index])
@@ -448,8 +447,8 @@ struct LargeWidgetView: View {
 
         return mistakes
     }
-    
-    private func rotatingIndicesText(total count: Int, startIndex: Int, maxDisplay: Int = 5) -> String {
+
+    private func rotatingIndicesText(total count: Int, startIndex: Int, maxDisplay: Int = 4) -> String {
         guard count > 0 else { return "" }
         let displayedCount = min(maxDisplay, count)
         var indices: [Int] = []
@@ -485,9 +484,9 @@ struct LargeWidgetView: View {
         }
         return parts.joined(separator: ",")
     }
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             // Header
             if let timeline = entry.primaryTimeline {
                 HStack(spacing: 10) {
@@ -504,36 +503,37 @@ struct LargeWidgetView: View {
                                     .foregroundColor(.white.opacity(0.8))
                             }
                         )
-                    
+
                     VStack(alignment: .leading, spacing: 3) {
                         Text(timeline.examName)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
-                        
+                            .truncationMode(.tail)
+
                         Text("\(availableQuizCount) \(availableQuizCount == 1 ? "quiz" : "quizzes") available")
                             .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.8))
-                        
-                        HStack(spacing: 4) {
+
+                        HStack(spacing: 6) {
                             ProgressView(value: timeline.progressPercentage)
                                 .tint(.white)
                                 .frame(height: 4)
-                            
+
                             Text("\(Int(timeline.progressPercentage * 100))%")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.white)
                         }
                     }
-                    
+
                     Spacer()
                 }
             }
-            
+
             Divider()
                 .background(Color.white.opacity(0.3))
                 .padding(.vertical, 2)
-            
+
             // Mistakes section
             if !entry.topMistakes.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -544,20 +544,27 @@ struct LargeWidgetView: View {
                         Text("Review These")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
-                        
+
                         Spacer()
-                        
-                        if entry.topMistakes.count > 5 {
+
+                        if entry.topMistakes.count > 4 {
                             let count = entry.topMistakes.count
                             let start = entry.mistakeRotationIndex % count
-                            let rangeText = rotatingIndicesText(total: count, startIndex: start, maxDisplay: 5)
+                            let _ = rotatingIndicesText(total: count, startIndex: start, maxDisplay: 4)
+                            // left intentionally unused; keep for future UI if needed
                         }
+                    }
 
+                    // constrained stack so items can't push beyond widget bounds
+                    VStack(spacing: 6) {
+                        ForEach(displayMistakes) { mistake in
+                            MistakeCardCompact(mistake: mistake)
+                                .padding(.vertical, 1)      // smaller vertical breathing
+                                .padding(.horizontal, 4)    // small inner gutter
+                                .clipped()
+                        }
                     }
-                    
-                    ForEach(displayMistakes) { mistake in
-                        MistakeCardCompact(mistake: mistake)
-                    }
+                    .padding(.bottom, 2)
                 }
             } else {
                 Spacer()
@@ -575,13 +582,18 @@ struct LargeWidgetView: View {
                 .frame(maxWidth: .infinity)
                 Spacer()
             }
-            
+
             Spacer(minLength: 0)
         }
-        .padding(12)
+        // outer padding (keeps content off the bezel) — can be increased if desired
+        .padding(14)
+        // limit the overall layout to the widget size caps
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
+
+
 
 // MARK: - Compact Components
 struct QuizRowCompact: View {
@@ -624,27 +636,31 @@ struct QuizRowCompact: View {
 
 struct MistakeCardCompact: View {
     let mistake: MistakeSnapshot
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(mistake.question)
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.white)
-                .lineLimit(2)
+                .lineLimit(2)                       // keep card height stable
                 .fixedSize(horizontal: false, vertical: true)
-            
-            HStack(spacing: 4) {
+                .minimumScaleFactor(0.85)           // allow slight downscaling to avoid wrapping to edge
+                .layoutPriority(1)
+
+            HStack(spacing: 6) {
                 Text("A:")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.green)
                 Text(mistake.correctAnswer)
-                    .font(.system(size: 8))
+                    .font(.system(size: 9))
                     .foregroundColor(.white.opacity(0.75))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.85)
             }
         }
-        .padding(7)
+        .padding(.horizontal, 8)   // keep card content away from card edge
+        .padding(.vertical, 8)     // compact vertical padding so list can fit up to 5 comfortably
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.orange.opacity(0.15))
         .cornerRadius(8)

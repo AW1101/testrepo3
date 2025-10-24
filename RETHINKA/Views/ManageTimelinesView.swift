@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 struct ManageTimelinesView: View {
     @Environment(\.modelContext) private var modelContext
@@ -141,6 +142,10 @@ struct ManageTimelinesView: View {
         
         do {
             try modelContext.save()
+            
+            // Force widget refresh after deletion
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after timeline deletion")
         } catch {
             print("Error deleting timeline: \(error)")
         }
@@ -152,6 +157,10 @@ struct ManageTimelinesView: View {
         
         do {
             try modelContext.save()
+            
+            // Force widget refresh after archiving
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after timeline archival")
         } catch {
             print("Error archiving timeline: \(error)")
         }
@@ -163,6 +172,10 @@ struct ManageTimelinesView: View {
         
         do {
             try modelContext.save()
+            
+            // Force widget refresh after restoration
+            WidgetCenter.shared.reloadAllTimelines()
+            print("Widget refreshed after timeline restoration")
         } catch {
             print("Error restoring timeline: \(error)")
         }

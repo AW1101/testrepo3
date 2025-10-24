@@ -120,4 +120,38 @@ class NotificationManager {
     func updateBadgeCount(incompleteQuizCount: Int) {
         UNUserNotificationCenter.current().setBadgeCount(incompleteQuizCount)
     }
+    
+    
+    
+    
+    //FOR TESTING
+    /*
+    func scheduleImmediateDailyReminder() {
+        // Use the EXACT same content as the real daily reminder
+        let content = UNMutableNotificationContent()
+        content.title = "Daily Quiz Reminder"
+        content.body = "You have incomplete quizzes today. Keep up the momentum!"
+        content.sound = .default
+        content.badge = 1
+        content.categoryIdentifier = "DAILY_REMINDER"
+        
+        // Trigger in 5 seconds
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        
+        // Use a different identifier so it doesn't get cancelled
+        let request = UNNotificationRequest(
+            identifier: "test-\(dailyReminderIdentifier)",
+            content: content,
+            trigger: trigger
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling immediate daily reminder: \(error.localizedDescription)")
+            } else {
+                print("daily reminder scheduled to fire in 5 seconds")
+            }
+        }
+    }
+     */
 }
