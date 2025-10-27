@@ -62,7 +62,7 @@ struct RETHINKAApp: App {
         WindowGroup {
             HomeView()
                 .onAppear {
-                    NotificationManager.shared.registerCategories()
+                    
                     // Initialize notification settings on app launch
                     setupInitialNotifications()
                 }

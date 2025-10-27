@@ -45,7 +45,16 @@ final class ExamTimeline {
     }
     
     var daysUntilExam: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: examDate).day ?? 0
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfExamDate = calendar.startOfDay(for: examDate)
+        
+        guard let days = calendar.dateComponents([.day], from: startOfToday, to: startOfExamDate).day else {
+            return 0
+        }
+        // Add 1 to include today in the count
+        // e.g., if exam is tomorrow, we want to show "1 day" not "0 days"
+        return max(0, days + 1)
     }
 }
 

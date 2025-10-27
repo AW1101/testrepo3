@@ -14,39 +14,41 @@ struct QuizView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var quiz: DailyQuiz
     
+    var customTitle: String? = nil
+
     @State private var currentQuestionIndex = 0
     @State private var showingResults = false
     @State private var selectedAnswer: Int?
     @State private var textFieldAnswer: String = ""
     @State private var hasAnswered = false
-    
-    
+    @State private var showingCancelConfirmation = false
+
     private var currentQuestion: QuizQuestion? {
         guard currentQuestionIndex < quiz.questions.count else { return nil }
         return quiz.questions[currentQuestionIndex]
     }
-    
+
     private var canSubmit: Bool {
         guard let question = currentQuestion else { return false }
-        
+
         if question.type == "textField" {
             return !textFieldAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         } else {
             return selectedAnswer != nil
         }
     }
-    
-    
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 Theme.background.ignoresSafeArea()
-                
+
                 if quiz.questions.isEmpty {
                     EmptyQuizView()
                 } else if showingResults {
+                    // Results view replaces the quiz content in-place
                     QuizResultView(quiz: quiz, onClose: {
+                        // close the entire pushed QuizView
                         dismiss()
                     })
                 } else {
@@ -56,7 +58,7 @@ struct QuizView: View {
                             currentQuestion: currentQuestionIndex + 1,
                             totalQuestions: quiz.questions.count
                         )
-                        
+
                         // Question Content
                         ScrollView {
                             VStack(spacing: 25) {
@@ -67,9 +69,9 @@ struct QuizView: View {
                                             Text("Question \(currentQuestionIndex + 1)")
                                                 .font(.caption)
                                                 .foregroundColor(.white.opacity(0.8))
-                                            
+
                                             Spacer()
-                                            
+
                                             Text(question.type == "textField" ? "Written Answer" : "Multiple Choice")
                                                 .font(.caption2)
                                                 .padding(.horizontal, 10)
@@ -78,7 +80,7 @@ struct QuizView: View {
                                                 .cornerRadius(10)
                                                 .foregroundColor(.white)
                                         }
-                                        
+
                                         Text(question.question)
                                             .font(.title3)
                                             .fontWeight(.semibold)
@@ -87,7 +89,7 @@ struct QuizView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding()
                                     .cardStyle()
-                                    
+
                                     // Options
                                     VStack(spacing: 15) {
                                         if question.type == "textField" {
@@ -95,7 +97,7 @@ struct QuizView: View {
                                                 Text("Your Answer:")
                                                     .font(.subheadline)
                                                     .foregroundColor(.white.opacity(0.8))
-                                                
+
                                                 TextEditor(text: $textFieldAnswer)
                                                     .frame(minHeight: 120)
                                                     .padding(8)
@@ -106,7 +108,7 @@ struct QuizView: View {
                                                             .stroke(Color.clear, lineWidth: 0)
                                                     )
                                                     .disabled(hasAnswered)
-                                                
+
                                                 if hasAnswered {
                                                     VStack(alignment: .leading, spacing: 8) {
                                                         HStack {
@@ -117,7 +119,7 @@ struct QuizView: View {
                                                                 .fontWeight(.bold)
                                                                 .foregroundColor(.orange)
                                                         }
-                                                        
+
                                                         Text(question.options[question.correctAnswerIndex])
                                                             .font(.subheadline)
                                                             .foregroundColor(.white.opacity(0.9))
@@ -147,7 +149,7 @@ struct QuizView: View {
                             }
                             .padding()
                         }
-                        
+
                         // Action Button
                         VStack(spacing: 10) {
                             if hasAnswered {
@@ -176,32 +178,55 @@ struct QuizView: View {
                     }
                 }
             }
-            .navigationTitle("Day \(quiz.dayNumber) Quiz")
+            .navigationTitle(customTitle ?? "Day \(quiz.dayNumber) Quiz")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .navigationBarBackButtonHidden(true)
+
+            // Show the Cancel button only while the user is answering (not on results screen)
+            .toolbar {
+                if !showingResults {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            showingCancelConfirmation = true
+                        }) {
+                            Text("Cancel")
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+
+            .alert("Cancel Quiz?", isPresented: $showingCancelConfirmation) {
+                Button("Continue Quiz", role: .cancel) { }
+                Button("Yes, Cancel", role: .destructive) {
+                    dismiss()
+                }
+            } message: {
+                Text("Your progress will not be saved. Are you sure you want to cancel?")
+            }
         }
     }
-    
+
     private func submitAnswer() {
         guard let question = currentQuestion else { return }
-        
+
         if question.type == "textField" {
-            // Store text answer
             quiz.questions[currentQuestionIndex].userAnswer = textFieldAnswer
-            // For text questions, mark as "correct" (manual review needed)
             quiz.questions[currentQuestionIndex].selectedAnswerIndex = question.correctAnswerIndex
         } else {
             guard let selectedAnswer = selectedAnswer else { return }
             quiz.questions[currentQuestionIndex].selectedAnswerIndex = selectedAnswer
-            
+
             if !quiz.questions[currentQuestionIndex].isAnsweredCorrectly {
                 quiz.questions[currentQuestionIndex].timesAnsweredIncorrectly += 1
             }
         }
-        
+
         hasAnswered = true
     }
-    
+
     private func nextQuestion() {
         if currentQuestionIndex < quiz.questions.count - 1 {
             currentQuestionIndex += 1
@@ -212,28 +237,29 @@ struct QuizView: View {
             completeQuiz()
         }
     }
-    
+
     private func completeQuiz() {
         let correctAnswers = quiz.questions.filter { $0.isAnsweredCorrectly }.count
         let score = Double(correctAnswers) / Double(quiz.questions.count)
-        
+
         quiz.isCompleted = true
         quiz.score = score
         quiz.completedDate = Date()
-        
+
         do {
             try modelContext.save()
-            
-            // force widget refresh
+
             WidgetCenter.shared.reloadAllTimelines()
             print("Widget refreshed after quiz completion")
-            
+
+            // show results (this will remove the Cancel button because of the toolbar conditional)
             showingResults = true
         } catch {
             print("Error saving quiz: \(error)")
         }
     }
 }
+
 
 struct EmptyQuizView: View {
     var body: some View {
@@ -376,7 +402,6 @@ struct QuizView_Previews: PreviewProvider {
             topic: "Sample Quiz"
         )
         
-        // Placeholder multiple choice question
         let q1 = QuizQuestion(
             question: "What is 2 + 2?",
             options: ["3", "4", "5", "6"],
@@ -385,7 +410,6 @@ struct QuizView_Previews: PreviewProvider {
             type: "multipleChoice"
         )
         
-        // Placeholder multiple choice question (wrong)
         let q2 = QuizQuestion(
             question: "Pick the colour red",
             options: ["Red", "Blue", "Green", "Yellow"],
@@ -394,7 +418,6 @@ struct QuizView_Previews: PreviewProvider {
             type: "multipleChoice"
         )
         
-        // Placeholder text question
         let q3 = QuizQuestion(
             question: "Say hello.",
             options: ["Hello", "", "", ""],

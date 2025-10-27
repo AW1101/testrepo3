@@ -201,7 +201,16 @@ struct TimelineManagementCard: View {
     }
     
     private var daysUntilExam: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: timeline.examDate).day ?? 0
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfExamDate = calendar.startOfDay(for: timeline.examDate)
+        
+        guard let days = calendar.dateComponents([.day], from: startOfToday, to: startOfExamDate).day else {
+            return 0
+        }
+        
+        // Add 1 to include today in the count
+        return max(0, days + 1)
     }
     
     var body: some View {
@@ -217,7 +226,7 @@ struct TimelineManagementCard: View {
                         .foregroundColor(.white.opacity(0.8))
                     
                     if daysUntilExam >= 0 {
-                        Text("\(daysUntilExam) days remaining")
+                        Text("\(daysUntilExam) \(daysUntilExam == 1 ? "day" : "days") remaining")
                             .font(.caption)
                             .foregroundColor(daysUntilExam < 7 ? .orange : .white)
                     } else {

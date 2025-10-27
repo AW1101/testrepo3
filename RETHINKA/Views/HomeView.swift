@@ -399,7 +399,15 @@ struct ActiveTimelineCard: View {
     let timeline: ExamTimeline
     
     private var daysUntilExam: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: timeline.examDate).day ?? 0
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfExamDate = calendar.startOfDay(for: timeline.examDate)
+        
+        guard let days = calendar.dateComponents([.day], from: startOfToday, to: startOfExamDate).day else {
+            return 0
+        }
+        
+        return max(0, days + 1)
     }
     
     private var completedQuizzes: Int {
@@ -416,9 +424,14 @@ struct ActiveTimelineCard: View {
                 .fill(.white)
                 .frame(width: 50, height: 50)
                 .overlay(
-                    Text("\(daysUntilExam)")
-                        .font(.headline)
-                        .foregroundColor(Theme.primary)
+                    VStack(spacing: 0) {
+                        Text("\(daysUntilExam)")
+                            .font(.headline)
+                            .foregroundColor(Theme.primary)
+                        Text("days")
+                            .font(.system(size: 8))
+                            .foregroundColor(Theme.primary)
+                    }
                 )
             
             VStack(alignment: .leading, spacing: 5) {

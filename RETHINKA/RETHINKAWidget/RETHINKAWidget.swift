@@ -5,22 +5,21 @@
 //  Created by Aston Walsh on 11/10/2025.
 //
 
-// Still all placeholder, needs to be worked on once main stuff is done
-
 import WidgetKit
 import SwiftUI
 import SwiftData
 
-// MARK: - Timeline Entry
+// MARK: - Timeline Entry (Updated)
 struct QuizEntry: TimelineEntry {
     let date: Date
     let primaryTimeline: TimelineSnapshot?
     let todayQuizzes: [QuizSnapshot]
     let topMistakes: [MistakeSnapshot]
     let mistakeRotationIndex: Int
+    let configuration: SelectTimelineIntent // Added configuration
 }
 
-// MARK: - Data Snapshots
+// MARK: - Data Snapshots (unchanged)
 struct TimelineSnapshot: Identifiable {
     let id: UUID
     let examName: String
@@ -45,8 +44,11 @@ struct MistakeSnapshot: Identifiable {
     let timesIncorrect: Int
 }
 
-// MARK: - Timeline Provider
-struct Provider: TimelineProvider {
+// MARK: - Timeline Provider (Updated)
+struct Provider: AppIntentTimelineProvider {
+    typealias Intent = SelectTimelineIntent
+    typealias Entry = QuizEntry
+    
     var modelContainer: ModelContainer {
         let schema = Schema([
             ExamTimeline.self,
@@ -94,58 +96,52 @@ struct Provider: TimelineProvider {
             ),
             todayQuizzes: [],
             topMistakes: [],
-            mistakeRotationIndex: 0
+            mistakeRotationIndex: 0,
+            configuration: SelectTimelineIntent()
         )
     }
     
-    func getSnapshot(in context: Context, completion: @escaping (QuizEntry) -> ()) {
-        let entry = fetchCurrentEntry(rotationIndex: 0)
-        completion(entry)
+    func snapshot(for configuration: SelectTimelineIntent, in context: Context) async -> QuizEntry {
+        return fetchCurrentEntry(configuration: configuration, rotationIndex: 0)
     }
     
-    func getTimeline(in context: Context, completion: @escaping (Timeline<QuizEntry>) -> ()) {
+    func timeline(for configuration: SelectTimelineIntent, in context: Context) async -> Timeline<QuizEntry> {
         var entries: [QuizEntry] = []
-        let baseData = fetchCurrentEntry(rotationIndex: 0)
+        let baseData = fetchCurrentEntry(configuration: configuration, rotationIndex: 0)
 
-        // If there are mistakes, create one timeline entry per rotation start index,
-        // stepping every 30 seconds so medium (1) and large (5) rotate through the full list.
         let rotationInterval: TimeInterval = 30
 
         if !baseData.topMistakes.isEmpty {
             let now = Date()
-            // number of distinct start indices we should rotate through:
             let rotationCount = max(1, baseData.topMistakes.count)
 
             for i in 0..<rotationCount {
                 let entryDate = now.addingTimeInterval(Double(i) * rotationInterval)
-                // We pass the full mistakes list but set the rotationIndex (will be modulo-ed in the views)
                 entries.append(QuizEntry(
                     date: entryDate,
                     primaryTimeline: baseData.primaryTimeline,
                     todayQuizzes: baseData.todayQuizzes,
                     topMistakes: baseData.topMistakes,
-                    mistakeRotationIndex: i
+                    mistakeRotationIndex: i,
+                    configuration: configuration
                 ))
             }
 
-            // Schedule next full refresh after one full rotation so data is refreshed
             let nextRefresh = now.addingTimeInterval(Double(rotationCount) * rotationInterval)
             let timeline = Timeline(entries: entries, policy: .after(nextRefresh))
-            completion(timeline)
+            return timeline
         } else {
-            // No mistakes: single static entry, refresh in 5 minutes
             entries.append(baseData)
             let nextRefresh = Date().addingTimeInterval(300)
             let timeline = Timeline(entries: entries, policy: .after(nextRefresh))
-            completion(timeline)
+            return timeline
         }
     }
-
     
-    private func fetchCurrentEntry(rotationIndex: Int) -> QuizEntry {
+    private func fetchCurrentEntry(configuration: SelectTimelineIntent, rotationIndex: Int) -> QuizEntry {
         let context = ModelContext(modelContainer)
         
-        // Fetch active timelines
+        // Fetch timelines
         let timelineDescriptor = FetchDescriptor<ExamTimeline>(
             predicate: #Predicate { $0.isActive },
             sortBy: [SortDescriptor(\.examDate)]
@@ -153,10 +149,20 @@ struct Provider: TimelineProvider {
         
         let timelines = (try? context.fetch(timelineDescriptor)) ?? []
         
-        // Get PRIMARY timeline (closest exam date)
-        let primaryTimeline = timelines.first
+        // Determine which timeline to use
+        let selectedTimeline: ExamTimeline?
         
-        let primarySnapshot: TimelineSnapshot? = primaryTimeline.map { timeline in
+        if let configuredTimelineId = configuration.timeline?.id,
+           let uuid = UUID(uuidString: configuredTimelineId) {
+            // Use configured timeline
+            selectedTimeline = timelines.first { $0.id == uuid }
+        } else {
+            // Use first timeline (default behavior)
+            selectedTimeline = timelines.first
+        }
+        
+        // Get timeline snapshot
+        let primarySnapshot: TimelineSnapshot? = selectedTimeline.map { timeline in
             TimelineSnapshot(
                 id: timeline.id,
                 examName: timeline.examName,
@@ -168,19 +174,15 @@ struct Provider: TimelineProvider {
             )
         }
         
-        // Get today's quizzes from PRIMARY timeline only
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        
-        var todayQuizzes: [QuizSnapshot] = []
+        // Get all incomplete quizzes that have been generated (have questions)
+        var incompleteQuizzes: [QuizSnapshot] = []
         var allMistakes: [MistakeSnapshot] = []
         
-        if let timeline = primaryTimeline {
-            let quizzesToday = timeline.dailyQuizzes.filter { quiz in
-                calendar.isDate(quiz.date, inSameDayAs: today)
-            }
+        if let timeline = selectedTimeline {
+            // Only count quizzes that have been generated (have questions) and are incomplete
+            let incomplete = timeline.dailyQuizzes.filter { !$0.isCompleted && !$0.questions.isEmpty }
             
-            todayQuizzes = quizzesToday.map { quiz in
+            incompleteQuizzes = incomplete.map { quiz in
                 QuizSnapshot(
                     id: quiz.id,
                     topic: quiz.topic.isEmpty ? "Daily Quiz" : quiz.topic,
@@ -189,7 +191,7 @@ struct Provider: TimelineProvider {
                 )
             }
             
-            // Collect ALL mistakes from completed quizzes
+            // Collect mistakes
             for quiz in timeline.dailyQuizzes where quiz.isCompleted {
                 for question in quiz.questions where !question.isAnsweredCorrectly && question.timesAnsweredIncorrectly > 0 {
                     allMistakes.append(MistakeSnapshot(
@@ -202,20 +204,20 @@ struct Provider: TimelineProvider {
             }
         }
         
-        // Sort mistakes by frequency
         let topMistakes = allMistakes.sorted { $0.timesIncorrect > $1.timesIncorrect }
         
         return QuizEntry(
             date: Date(),
             primaryTimeline: primarySnapshot,
-            todayQuizzes: todayQuizzes,
+            todayQuizzes: incompleteQuizzes,
             topMistakes: topMistakes,
-            mistakeRotationIndex: rotationIndex
+            mistakeRotationIndex: rotationIndex,
+            configuration: configuration
         )
     }
 }
 
-// MARK: - Widget Views
+// MARK: - Widget Views (unchanged from original)
 struct RETHINKAWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
     var entry: Provider.Entry
@@ -246,6 +248,12 @@ struct SmallWidgetView: View {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
     
+    private var daysText: String {
+        guard let timeline = entry.primaryTimeline else { return "" }
+        let days = timeline.daysUntilExam
+        return days == 1 ? "day til" : "days til"
+    }
+    
     var body: some View {
         if let timeline = entry.primaryTimeline {
             VStack(spacing: 6) {
@@ -260,7 +268,7 @@ struct SmallWidgetView: View {
                         Text("\(timeline.daysUntilExam)")
                             .font(.system(size: 26, weight: .bold))
                             .foregroundColor(.white)
-                        Text("days til")
+                        Text(daysText)
                             .font(.system(size: 9))
                             .foregroundColor(.white.opacity(0.9))
                         Text("exam")
@@ -309,12 +317,18 @@ struct SmallWidgetView: View {
     }
 }
 
-// MARK: - Medium Widget
+// MARK: - Medium Widget (Updated to remove quiz list, show completion/mistakes)
 struct MediumWidgetView: View {
     let entry: QuizEntry
     
     private var availableQuizCount: Int {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
+    }
+    
+    private var daysText: String {
+        guard let timeline = entry.primaryTimeline else { return "" }
+        let days = timeline.daysUntilExam
+        return days == 1 ? "day" : "days"
     }
     
     var body: some View {
@@ -330,11 +344,10 @@ struct MediumWidgetView: View {
                                 Text("\(timeline.daysUntilExam)")
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.white)
-                                Text("days")
+                                Text(daysText)
                                     .font(.system(size: 6))
                                     .foregroundColor(.white.opacity(0.8))
                             }
-                            
                         )
                     
                     VStack(alignment: .leading, spacing: 2) {
@@ -352,7 +365,7 @@ struct MediumWidgetView: View {
                 }
             }
             
-            // Show rotating mistake
+            // Show rotating mistake OR completion message
             if !entry.topMistakes.isEmpty {
                 let currentMistake = entry.topMistakes[entry.mistakeRotationIndex % entry.topMistakes.count]
                 
@@ -366,10 +379,6 @@ struct MediumWidgetView: View {
                             .foregroundColor(.orange)
                         
                         Spacer()
-                        
-                        if entry.topMistakes.count > 1 {
-                            let idx = (entry.mistakeRotationIndex % entry.topMistakes.count) + 1
-                        }
                     }
                     
                     Text(currentMistake.question)
@@ -393,13 +402,8 @@ struct MediumWidgetView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.2))
                 .cornerRadius(10)
-            } else if !entry.todayQuizzes.isEmpty {
-                VStack(spacing: 6) {
-                    ForEach(entry.todayQuizzes.prefix(3)) { quiz in
-                        QuizRowCompact(quiz: quiz)
-                    }
-                }
             } else {
+                // Show "No mistakes" message instead of quiz list
                 Spacer()
                 HStack {
                     Spacer()
@@ -407,9 +411,12 @@ struct MediumWidgetView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 22))
                             .foregroundColor(.white.opacity(0.6))
-                        Text("All caught up!")
+                        Text("No mistakes to review!")
                             .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.8))
+                        Text("Great job!")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.7))
                     }
                     Spacer()
                 }
@@ -429,6 +436,12 @@ struct LargeWidgetView: View {
 
     private var availableQuizCount: Int {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
+    }
+    
+    private var daysText: String {
+        guard let timeline = entry.primaryTimeline else { return "" }
+        let days = timeline.daysUntilExam
+        return days == 1 ? "day" : "days"
     }
 
     private var displayMistakes: [MistakeSnapshot] {
@@ -498,7 +511,7 @@ struct LargeWidgetView: View {
                                 Text("\(timeline.daysUntilExam)")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
-                                Text("days")
+                                Text(daysText)
                                     .font(.system(size: 8))
                                     .foregroundColor(.white.opacity(0.8))
                             }
@@ -667,9 +680,15 @@ struct MistakeCardCompact: View {
     }
 }
 
-// MARK: - Lock Screen Widgets
+// Lock Screen Widgets
 struct AccessoryCircularView: View {
     let entry: QuizEntry
+    
+    private var daysText: String {
+        guard let timeline = entry.primaryTimeline else { return "" }
+        let days = timeline.daysUntilExam
+        return days == 1 ? "day" : "days"
+    }
     
     var body: some View {
         if let timeline = entry.primaryTimeline {
@@ -678,7 +697,7 @@ struct AccessoryCircularView: View {
                 VStack(spacing: 1) {
                     Text("\(timeline.daysUntilExam)")
                         .font(.system(size: 20, weight: .bold))
-                    Text("days")
+                    Text(daysText)
                         .font(.system(size: 8))
                         .opacity(0.8)
                 }
@@ -700,6 +719,12 @@ struct AccessoryRectangularView: View {
         entry.todayQuizzes.filter { !$0.isCompleted }.count
     }
     
+    private var daysText: String {
+        guard let timeline = entry.primaryTimeline else { return "" }
+        let days = timeline.daysUntilExam
+        return "\(days) \(days == 1 ? "day" : "days")"
+    }
+    
     var body: some View {
         if let timeline = entry.primaryTimeline {
             VStack(alignment: .leading, spacing: 2) {
@@ -708,11 +733,8 @@ struct AccessoryRectangularView: View {
                     .lineLimit(1)
                 
                 HStack(spacing: 8) {
-                    Label("\(timeline.daysUntilExam) days", systemImage: "calendar")
+                    Label(daysText, systemImage: "calendar")
                         .font(.system(size: 10))
-                    Text("days")
-                        .font(.system(size: 8))
-                        .opacity(0.8)
                     
                     if availableQuizCount > 0 {
                         Label("\(availableQuizCount) left", systemImage: "checklist")
@@ -737,12 +759,12 @@ struct RETHINKAWidget: Widget {
     let kind: String = "RETHINKAWidget"
     
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+        AppIntentConfiguration(kind: kind, intent: SelectTimelineIntent.self, provider: Provider()) { entry in
             RETHINKAWidgetEntryView(entry: entry)
                 .containerBackground(Color(hex: "0b6374"), for: .widget)
         }
         .configurationDisplayName("Quiz Progress")
-        .description("Track daily quizzes and review mistakes.")
+        .description("Track daily quizzes and review mistakes for your selected exam timeline.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
@@ -775,6 +797,7 @@ extension Color {
     }
 }
 
+
 // MARK: - Preview
 #Preview(as: .systemLarge) {
     RETHINKAWidget()
@@ -801,6 +824,7 @@ extension Color {
             MistakeSnapshot(id: UUID(), question: "How does SwiftData persistence work?", correctAnswer: "Uses ModelContext to save and fetch objects", timesIncorrect: 1),
             MistakeSnapshot(id: UUID(), question: "What is a GeometryReader used for?", correctAnswer: "Reading size and position of views", timesIncorrect: 1)
         ],
-        mistakeRotationIndex: 0
+        mistakeRotationIndex: 0,
+        configuration: SelectTimelineIntent()
     )
 }

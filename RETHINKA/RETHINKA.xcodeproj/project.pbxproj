@@ -84,6 +84,13 @@
 			);
 			target = 38A252CE2E9E1D3400FC1F8D /* RETHINKAWidgetExtension */;
 		};
+		38CA09202EAC3EB600BD4325 /* Exceptions for "RETHINKAWidget" folder in "RETHINKA" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				TimelineSelectionIntent.swift,
+			);
+			target = 3886F28C2E9E0CAE004E0D76 /* RETHINKA */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -112,6 +119,7 @@
 		38A252D22E9E1D3400FC1F8D /* RETHINKAWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				38CA09202EAC3EB600BD4325 /* Exceptions for "RETHINKAWidget" folder in "RETHINKA" target */,
 				38A252E42E9E1D3500FC1F8D /* Exceptions for "RETHINKAWidget" folder in "RETHINKAWidgetExtension" target */,
 			);
 			path = RETHINKAWidget;
