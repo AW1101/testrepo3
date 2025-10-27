@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 
+// Model representing a user's course note that can be attached to exam timelines
 @Model
 final class CourseNote {
     var id: UUID

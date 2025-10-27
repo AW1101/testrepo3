@@ -9,6 +9,7 @@ import Foundation
 import UserNotifications
 import SwiftData
 
+// Manages all app notifications including daily reminders and badge counts
 class NotificationManager {
     static let shared = NotificationManager()
     
@@ -32,13 +33,10 @@ class NotificationManager {
         }
     }
     
-    // Daily Reminders
-    
+    // Schedule repeating daily notification at specified hour
     func scheduleDailyReminders(at hour: Int) {
-        // Cancel existing reminders
         cancelAllReminders()
         
-        // Schedule new daily reminder
         let content = UNMutableNotificationContent()
         content.title = "Daily Quiz Reminder"
         content.body = "You have incomplete quizzes today. Keep up the momentum!"
@@ -46,12 +44,10 @@ class NotificationManager {
         content.badge = 1
         content.categoryIdentifier = "DAILY_REMINDER"
         
-        // Create date components for the notification time
         var dateComponents = DateComponents()
         dateComponents.hour = hour
         dateComponents.minute = 0
         
-        // Create trigger that repeats daily
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         
         let request = UNNotificationRequest(
@@ -75,12 +71,10 @@ class NotificationManager {
         print("Cancelled all daily reminders")
     }
     
-    // Timeline-Specific Notifications (Legacy - kept for compatibility)
-    
+    // Legacy method for timeline-specific notifications
     func scheduleDailyQuizNotification(for timeline: ExamTimeline) {
         let center = UNUserNotificationCenter.current()
         
-        // Remove existing notifications for this timeline
         center.removePendingNotificationRequests(withIdentifiers: [timeline.id.uuidString])
         
         for quiz in timeline.dailyQuizzes where !quiz.isCompleted {
@@ -115,8 +109,7 @@ class NotificationManager {
         }
     }
     
-    // Update Badge Count
-    
+    // Update app icon badge with incomplete quiz count
     func updateBadgeCount(incompleteQuizCount: Int) {
         UNUserNotificationCenter.current().setBadgeCount(incompleteQuizCount)
     }

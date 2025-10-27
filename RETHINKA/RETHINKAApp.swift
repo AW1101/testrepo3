@@ -13,6 +13,7 @@ import WidgetKit
 struct RETHINKAApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
+    // Configure shared model container using App Groups for widget data sharing
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ExamTimeline.self,
@@ -21,14 +22,11 @@ struct RETHINKAApp: App {
             DailyQuiz.self
         ])
         
-        // Use App Group to share data with widget
         let appGroupID = "group.A4.RETHINKA"
         
-        // Try to get App Group URL
         if let appGroupURL = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
         ) {
-            // App Groups configured, use shared storage
             let storeURL = appGroupURL.appendingPathComponent("RETHINKA.sqlite")
             print("App: Using App Group storage at: \(storeURL.path)")
             
@@ -44,7 +42,6 @@ struct RETHINKAApp: App {
                 fatalError("Could not create ModelContainer with App Group: \(error)")
             }
         } else {
-            // App Groups not configured - fall back to default (widget won't work)
             print("WARNING: App Groups not configured! Widget will NOT see data.")
             print("Add App Groups capability with ID: \(appGroupID)")
             
@@ -62,20 +59,17 @@ struct RETHINKAApp: App {
         WindowGroup {
             HomeView()
                 .onAppear {
-                    
-                    // Initialize notification settings on app launch
                     setupInitialNotifications()
                 }
         }
         .modelContainer(sharedModelContainer)
     }
     
+    // Set up notifications on first launch or if previously enabled
     private func setupInitialNotifications() {
         let notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
         
-        // Only set up if user hasn't explicitly disabled them
         if UserDefaults.standard.object(forKey: "notificationsEnabled") == nil {
-            // First launch, request permission
             NotificationManager.shared.requestAuthorization { granted in
                 UserDefaults.standard.set(granted, forKey: "notificationsEnabled")
                 if granted {
@@ -84,7 +78,6 @@ struct RETHINKAApp: App {
                 }
             }
         } else if notificationsEnabled {
-            // User has enabled notifications, schedule them
             let hour = UserDefaults.standard.integer(forKey: "notificationTime")
             NotificationManager.shared.scheduleDailyReminders(at: hour > 0 ? hour : 9)
         }

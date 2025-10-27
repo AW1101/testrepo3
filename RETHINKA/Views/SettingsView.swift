@@ -25,7 +25,6 @@ struct SettingsView: View {
                 
                 ScrollView {
                     VStack(spacing: 25) {
-                        // Header
                         VStack(spacing: 10) {
                             Circle()
                                 .fill(.white)

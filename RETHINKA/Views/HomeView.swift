@@ -48,7 +48,6 @@ struct HomeView: View {
                         }
                         .padding(.top, 40)
                         
-                        // Active Timelines Summary
                         if !activeTimelines.isEmpty {
                             VStack(alignment: .leading, spacing: 15) {
                                 Text("Active Timelines")
@@ -82,7 +81,6 @@ struct HomeView: View {
                         
                         Spacer()
                         
-                        // Main Action Buttons
                         VStack(spacing: 20) {
                             Button(action: {
                                 showingCreateExam = true
@@ -98,7 +96,6 @@ struct HomeView: View {
                             .buttonStyle(Theme.PrimaryButton())
 
                             HStack(spacing: 16) {
-                                // Manage Timelines
                                 Button(action: {
                                     showingManageTimelines = true
                                 }) {
@@ -114,7 +111,6 @@ struct HomeView: View {
                                     .cornerRadius(18)
                                 }
 
-                                // Settings
                                 Button(action: {
                                     showingSettings = true
                                 }) {
@@ -158,6 +154,7 @@ struct HomeView: View {
         }
     }
     
+    // Check if today's quizzes need generation for any timeline
     private func checkAndGenerateDailyQuizzes() {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -176,6 +173,7 @@ struct HomeView: View {
         }
     }
     
+    // Generate questions for today's empty quizzes
     private func generateDailyQuizzesFor(timeline: ExamTimeline, date: Date) {
         isGeneratingDailyQuizzes = true
         generationProgress = 0.1
@@ -234,6 +232,7 @@ struct HomeView: View {
                         return
                     }
                     
+                    // Populate quizzes with generated questions
                     for (index, quiz) in todayQuizzes.enumerated() {
                         let topicIndex = index % topicKeys.count
                         let topic = topicKeys[topicIndex]
@@ -257,6 +256,7 @@ struct HomeView: View {
                                     timeline.dailyQuizzes[quizIdx].questions.append(question)
                                 }
                                 
+                                // Pad to 10 questions if needed
                                 while timeline.dailyQuizzes[quizIdx].questions.count < 10 {
                                     let paddingQ = QuizQuestion(
                                         question: "Question about \(topic.lowercased()): Explain a concept.",

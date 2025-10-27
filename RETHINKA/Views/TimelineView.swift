@@ -205,7 +205,6 @@ struct TimelineView: View {
                 }
             }
 
-            // Hidden NavigationLinks to perform programmatic push navigation
             // Quiz push
             NavigationLink(
                 destination: Group {
@@ -225,7 +224,6 @@ struct TimelineView: View {
             NavigationLink(
                 destination: Group {
                     if let review = reviewQuiz {
-                        // Use a NavigationStack inside the pushed view if needed by the review view
                         QuizReviewView(quiz: review)
                     } else {
                         EmptyView()
@@ -266,14 +264,12 @@ struct TimelineView: View {
         timeline.dailyQuizzes.count
     }
 
-    // UPDATED: New logic - quiz is available if it has questions (has been generated)
+    // Quiz is available if it has questions (has been generated)
     private func isQuizAvailable(_ quiz: DailyQuiz) -> Bool {
-        // Quiz is available if it has questions (has been generated)
-        // No more sequential locking - users can do any quiz that's ready
         return !quiz.questions.isEmpty
     }
 
-    // UPDATED: Helper to check if quiz is pending generation
+    // Helper to check if quiz is pending generation
     private func isQuizPending(_ quiz: DailyQuiz) -> Bool {
         return quiz.questions.isEmpty
     }

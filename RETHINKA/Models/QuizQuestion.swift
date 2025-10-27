@@ -19,7 +19,7 @@ final class QuizQuestion {
     var difficulty: Int
     var timesAnsweredIncorrectly: Int
     var type: String // "multipleChoice" or "textField"
-    var userAnswer: String? // For textField answers
+    var userAnswer: String? // For textField type questions
 
     init(
         question: String,
@@ -40,7 +40,7 @@ final class QuizQuestion {
     }
     
     var isAnsweredCorrectly: Bool {
-        // For textField questions, validate against expected answer
+        // Validate text field answers with fuzzy matching
         if type == "textField" {
             guard let userAnswer = userAnswer?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                   !userAnswer.isEmpty else {
@@ -49,23 +49,21 @@ final class QuizQuestion {
             
             let correctAnswer = options[correctAnswerIndex].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             
-            // Check for exact match or substantial overlap
             if userAnswer == correctAnswer {
                 return true
             }
             
-            // Check if user answer contains key words from correct answer
+            // Check for keyword overlap (40% threshold)
             let correctWords = Set(correctAnswer.split(separator: " ").map { String($0) })
             let userWords = Set(userAnswer.split(separator: " ").map { String($0) })
             
-            // If user answer contains at least 40% of key words, consider it correct
             let intersection = correctWords.intersection(userWords)
             let matchPercentage = Double(intersection.count) / Double(correctWords.count)
             
             return matchPercentage >= 0.4
         }
         
-        // For multiple choice, check selected answer
+        // Standard multiple choice validation
         guard let selected = selectedAnswerIndex else { return false }
         return selected == correctAnswerIndex
     }

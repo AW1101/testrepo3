@@ -14,17 +14,18 @@ struct GeneratedQuestion: Codable {
     let type: String // "multipleChoice" or "textField"
 }
 
+// Singleton service for generating AI-powered quiz questions using OpenAI API
 final class AIQuestionGenerator {
     static let shared = AIQuestionGenerator()
     
     private let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
     private let timeout: TimeInterval = 60.0
     
-    // Get difficulty from UserDefaults
     private var currentDifficulty: String {
         UserDefaults.standard.string(forKey: "difficultyLevel") ?? "Medium"
     }
     
+    // Difficulty-specific prompt instructions for AI generation
     private var difficultyInstructions: String {
         switch currentDifficulty {
         case "Easy":
@@ -45,7 +46,7 @@ final class AIQuestionGenerator {
             - Require deep understanding, not just memorization
             - Example: "In scenario X, what would happen if Y changed, and why?"
             """
-        default: // Medium
+        default:
             return """
             DIFFICULTY: MEDIUM
             - Balance between recall and application
@@ -57,7 +58,7 @@ final class AIQuestionGenerator {
         }
     }
     
-    // Main generator
+    // Generate multiple topics worth of quiz questions
     func generateTopicQuizzes(
         examBrief: String,
         notes: [String],
@@ -184,6 +185,7 @@ final class AIQuestionGenerator {
         task.resume()
     }
     
+    // Parse and validate API response
     private func decodeResponse(_ data: Data) throws -> [String: [GeneratedQuestion]] {
         struct APIResponse: Codable {
             struct Choice: Codable {
@@ -200,6 +202,7 @@ final class AIQuestionGenerator {
             throw NSError(domain: "Missing content", code: -2)
         }
         
+        // Strip code fences if present
         var cleanedContent = content
         if cleanedContent.contains("```json") {
             cleanedContent = cleanedContent
@@ -224,6 +227,7 @@ final class AIQuestionGenerator {
         
         var validatedTopics: [String: [GeneratedQuestion]] = [:]
         
+        // Validate each question meets requirements
         for topicBlock in root.topics {
             var validQuestions: [GeneratedQuestion] = []
             
@@ -238,6 +242,7 @@ final class AIQuestionGenerator {
                     continue
                 }
                 
+                // Ensure textField questions have correctAnswerIndex = 0
                 if question.type == "textField" && question.correctAnswerIndex != 0 {
                     var fixedQuestion = question
                     fixedQuestion.correctAnswerIndex = 0
@@ -263,7 +268,7 @@ final class AIQuestionGenerator {
         return nil
     }
     
-    // Fallback generator (placeholder questions in the event that ai questions are not able to be generated)
+    // Generate local placeholder questions when API fails
     private func localFallbackTopics(count: Int, questionsPerTopic: Int) -> [String: [GeneratedQuestion]] {
         let sampleTopics = [
             "Core Concepts",
@@ -318,6 +323,7 @@ final class AIQuestionGenerator {
         return dict
     }
     
+    // Generate variant questions for reinforcement practice
     func generateVariants(for question: QuizQuestion, completion: @escaping (Result<[GeneratedQuestion], Error>) -> Void) {
         guard let apiKey = apiKey, !apiKey.isEmpty else {
             print("No API key found for variant generation.")
@@ -378,7 +384,6 @@ final class AIQuestionGenerator {
                 return
             }
 
-            // 1) Decode Chat Completions envelope
             struct ChatResponse: Decodable {
                 struct Choice: Decodable {
                     struct Message: Decodable {
@@ -396,7 +401,6 @@ final class AIQuestionGenerator {
                     return
                 }
 
-                // 2) Strip code fences if present
                 var cleanedContent = content
                 if cleanedContent.contains("```json") || cleanedContent.contains("```") {
                     cleanedContent = cleanedContent
@@ -405,7 +409,6 @@ final class AIQuestionGenerator {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                 }
 
-                // 3) Decode the content as an array of GeneratedQuestion
                 guard let variantsData = cleanedContent.data(using: .utf8) else {
                     completion(.failure(NSError(domain: "Invalid UTF8", code: -3)))
                     return
@@ -414,7 +417,6 @@ final class AIQuestionGenerator {
                 let variants = try JSONDecoder().decode([GeneratedQuestion].self, from: variantsData)
                 completion(.success(variants))
             } catch {
-                // Helpful debug print if needed
                 if let rawString = String(data: data, encoding: .utf8) {
                     print("Variant raw response (first 500): \(rawString.prefix(500))")
                 }
@@ -425,7 +427,7 @@ final class AIQuestionGenerator {
         task.resume()
     }
     
-    
+    // Helper functions for difficulty-adjusted fallback questions
     private func getDifficultyAdjustedTextQuestion(topic: String, number: Int) -> String {
         switch currentDifficulty {
         case "Easy":

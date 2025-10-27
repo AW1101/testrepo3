@@ -31,7 +31,6 @@ struct QuizReviewView: View {
             
             ScrollView {
                 VStack(spacing: 25) {
-                    // Header Card
                     VStack(spacing: 15) {
                         HStack {
                             VStack(alignment: .leading, spacing: 5) {

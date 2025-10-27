@@ -180,7 +180,7 @@ struct TimelineMistakesView: View {
     }
 }
 
-// MARK: - Reinforcement Loading View
+// Reinforcement Loading View
 struct ReinforcementLoadingView: View {
     var body: some View {
         ZStack {

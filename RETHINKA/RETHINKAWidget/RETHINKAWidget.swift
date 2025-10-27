@@ -9,17 +9,17 @@ import WidgetKit
 import SwiftUI
 import SwiftData
 
-// MARK: - Timeline Entry (Updated)
+// Timeline Entry
 struct QuizEntry: TimelineEntry {
     let date: Date
     let primaryTimeline: TimelineSnapshot?
     let todayQuizzes: [QuizSnapshot]
     let topMistakes: [MistakeSnapshot]
     let mistakeRotationIndex: Int
-    let configuration: SelectTimelineIntent // Added configuration
+    let configuration: SelectTimelineIntent
 }
 
-// MARK: - Data Snapshots (unchanged)
+// Data Snapshots
 struct TimelineSnapshot: Identifiable {
     let id: UUID
     let examName: String
@@ -44,7 +44,7 @@ struct MistakeSnapshot: Identifiable {
     let timesIncorrect: Int
 }
 
-// MARK: - Timeline Provider (Updated)
+// Timeline Provider
 struct Provider: AppIntentTimelineProvider {
     typealias Intent = SelectTimelineIntent
     typealias Entry = QuizEntry
@@ -217,7 +217,7 @@ struct Provider: AppIntentTimelineProvider {
     }
 }
 
-// MARK: - Widget Views (unchanged from original)
+// Widget Views
 struct RETHINKAWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
     var entry: Provider.Entry
@@ -240,7 +240,7 @@ struct RETHINKAWidgetEntryView: View {
     }
 }
 
-// MARK: - Small Widget
+// Small Widget
 struct SmallWidgetView: View {
     let entry: QuizEntry
     
@@ -317,7 +317,7 @@ struct SmallWidgetView: View {
     }
 }
 
-// MARK: - Medium Widget (Updated to remove quiz list, show completion/mistakes)
+// Medium Widget
 struct MediumWidgetView: View {
     let entry: QuizEntry
     
@@ -430,7 +430,7 @@ struct MediumWidgetView: View {
     }
 }
 
-// MARK: - Large Widget (4 rotating mistakes, defensive layout)
+// Large Widget (4 rotating mistakes)
 struct LargeWidgetView: View {
     let entry: QuizEntry
 
@@ -451,7 +451,6 @@ struct LargeWidgetView: View {
         let startIndex = entry.mistakeRotationIndex % count
         var mistakes: [MistakeSnapshot] = []
 
-        // Show up to 4 mistakes to guarantee vertical fit in typical widget sizes
         let toDisplay = min(4, count)
         for i in 0..<toDisplay {
             let index = (startIndex + i) % count
@@ -564,16 +563,14 @@ struct LargeWidgetView: View {
                             let count = entry.topMistakes.count
                             let start = entry.mistakeRotationIndex % count
                             let _ = rotatingIndicesText(total: count, startIndex: start, maxDisplay: 4)
-                            // left intentionally unused; keep for future UI if needed
                         }
                     }
 
-                    // constrained stack so items can't push beyond widget bounds
                     VStack(spacing: 6) {
                         ForEach(displayMistakes) { mistake in
                             MistakeCardCompact(mistake: mistake)
-                                .padding(.vertical, 1)      // smaller vertical breathing
-                                .padding(.horizontal, 4)    // small inner gutter
+                                .padding(.vertical, 1)
+                                .padding(.horizontal, 4)
                                 .clipped()
                         }
                     }
@@ -598,9 +595,7 @@ struct LargeWidgetView: View {
 
             Spacer(minLength: 0)
         }
-        // outer padding (keeps content off the bezel) — can be increased if desired
         .padding(14)
-        // limit the overall layout to the widget size caps
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
@@ -608,7 +603,7 @@ struct LargeWidgetView: View {
 
 
 
-// MARK: - Compact Components
+// Compact Components
 struct QuizRowCompact: View {
     let quiz: QuizSnapshot
     
@@ -655,9 +650,9 @@ struct MistakeCardCompact: View {
             Text(mistake.question)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.white)
-                .lineLimit(2)                       // keep card height stable
+                .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .minimumScaleFactor(0.85)           // allow slight downscaling to avoid wrapping to edge
+                .minimumScaleFactor(0.85)
                 .layoutPriority(1)
 
             HStack(spacing: 6) {
@@ -672,8 +667,8 @@ struct MistakeCardCompact: View {
                     .minimumScaleFactor(0.85)
             }
         }
-        .padding(.horizontal, 8)   // keep card content away from card edge
-        .padding(.vertical, 8)     // compact vertical padding so list can fit up to 5 comfortably
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.orange.opacity(0.15))
         .cornerRadius(8)
@@ -754,7 +749,7 @@ struct AccessoryRectangularView: View {
     }
 }
 
-// MARK: - Widget Configuration
+// Widget Configuration
 struct RETHINKAWidget: Widget {
     let kind: String = "RETHINKAWidget"
     
@@ -769,7 +764,7 @@ struct RETHINKAWidget: Widget {
     }
 }
 
-// MARK: - Color Extension
+// Color Extension
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -798,7 +793,7 @@ extension Color {
 }
 
 
-// MARK: - Preview
+// Preview
 #Preview(as: .systemLarge) {
     RETHINKAWidget()
 } timeline: {

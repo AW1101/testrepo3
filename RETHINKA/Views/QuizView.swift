@@ -53,7 +53,6 @@ struct QuizView: View {
                     })
                 } else {
                     VStack(spacing: 0) {
-                        // Progress Header
                         QuizProgressHeader(
                             currentQuestion: currentQuestionIndex + 1,
                             totalQuestions: quiz.questions.count
@@ -252,7 +251,7 @@ struct QuizView: View {
             WidgetCenter.shared.reloadAllTimelines()
             print("Widget refreshed after quiz completion")
 
-            // show results (this will remove the Cancel button because of the toolbar conditional)
+            // show results (will remove Cancel button because of the toolbar conditional)
             showingResults = true
         } catch {
             print("Error saving quiz: \(error)")

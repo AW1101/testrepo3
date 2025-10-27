@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 
+// Main timeline model representing an exam preparation schedule
 @Model
 final class ExamTimeline {
     var id: UUID
@@ -30,7 +31,6 @@ final class ExamTimeline {
         self.isActive = true
     }
     
-    // Helper computed properties
     var totalQuizCount: Int {
         dailyQuizzes.count
     }
@@ -44,6 +44,7 @@ final class ExamTimeline {
         return Double(completedQuizCount) / Double(totalQuizCount)
     }
     
+    // Calculate days remaining until exam, including today
     var daysUntilExam: Int {
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
@@ -52,12 +53,11 @@ final class ExamTimeline {
         guard let days = calendar.dateComponents([.day], from: startOfToday, to: startOfExamDate).day else {
             return 0
         }
-        // Add 1 to include today in the count
-        // e.g., if exam is tomorrow, we want to show "1 day" not "0 days"
         return max(0, days + 1)
     }
 }
 
+// Model representing a single day's quiz within an exam timeline
 @Model
 final class DailyQuiz {
     var id: UUID
@@ -80,7 +80,6 @@ final class DailyQuiz {
         self.isCompleted = false
     }
     
-    // Helper computed properties
     var correctAnswerCount: Int {
         questions.filter { $0.isAnsweredCorrectly }.count
     }
